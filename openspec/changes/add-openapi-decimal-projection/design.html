@@ -228,6 +228,7 @@ compares the module with the native crate on it, and adds Decimal option sets; t
 <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
 <tbody>
 <tr><td>A producer that writes the wider IR v4 lexeme (<code>1E+3</code>) fails validation.</td><td>Documented in the CHANGELOG. Such a string is not safe for the Elm decoder. A consumer that wants a JSON number uses <code>decimal_encoding: "number"</code>.</td></tr>
+<tr><td>A validator built on Python <code>re</code> or Java regex lets <code>$</code> match before a final newline, so it also accepts <code>"12.50\n"</code>.</td><td>JSON Schema defines <code>pattern</code> as ECMA-262, where <code>$</code> is the end of the string; the Rust test suite pins that. No end anchor works in every engine, so the limit is documented.</td></tr>
 <tr><td>Validators differ in how they treat <code>format: "decimal"</code>.</td><td>In 2020-12 an unknown format is an annotation; the pattern does the checking.</td></tr>
 <tr><td>With precision and scale, trailing fraction zeros count toward the scale (<code>"1.500"</code> fails at scale 2).</td><td>This is also the Avro meaning of scale. Documented in the option description.</td></tr>
 <tr><td>The qualification depends on a MoonBit CLI build (npm fix finos/morphir-moonbit#290).</td><td>Use #290, or <code>main</code> once it merges, and record the commit in the qualification evidence.</td></tr>

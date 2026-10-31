@@ -189,7 +189,9 @@ pub(crate) fn schema_body(schema: &Schema, reference_base: &str) -> Value {
 /// reads 0 without an error. With [`DecimalDigits`], the integer part has at
 /// most `precision - scale` digits and the fraction at most `scale` digits.
 /// The pattern uses only syntax that ECMA-262 and the Rust `regex` crate
-/// read alike.
+/// read alike. JSON Schema defines `pattern` as ECMA-262; a validator built
+/// on Python `re` or Java regex lets `$` match before a final newline and so
+/// also accepts `"12.50\n"`, and no end anchor works in every engine.
 fn decimal_pattern(digits: Option<DecimalDigits>) -> String {
     let Some(DecimalDigits { precision, scale }) = digits else {
         return r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$".to_owned();
@@ -300,6 +302,7 @@ mod tests {
             json!("007"),
             json!(""),
             json!(" 1"),
+            json!("1\n"),
             json!(12.5),
         ];
         let schema = decimal(DecimalEncoding::String, None);
