@@ -7,6 +7,11 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 ## [Unreleased]
 
+## morphir-avro 0.3.0 and morphir-openapi 0.3.0 - 2026-10-31
+
+First releases from this repository: `extension/avro/v0.3.0` and
+`extension/openapi/v0.3.0`, attested bundles built from `96d57db`.
+
 ### Added
 
 - Repository setup: the shared OpenSpec `html-design` schema, pinned mise tools and

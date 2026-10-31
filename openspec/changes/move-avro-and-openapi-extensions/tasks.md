@@ -40,10 +40,10 @@ requests in FUP-1.
 
 ## 4. Releases
 
-- [ ] 4.1 After PR 3 merges, run the release workflow from `main` with `publish: false` for both tags. Verify: all jobs pass and each bundle artifact matches the extension-bundle-release spec; a run with a wrong version fails in check.
-- [ ] 4.2 Run `qualify:moonbit` on both dry-run bundles (native and Node CLI, macOS locally and Linux with `qualify-moonbit.yml`, Python 0.4.2 as a control) and the finos/morphir host compatibility test with the dry-run modules. Verify: the records show exit 0 for describe and generate, or the Node result follows the decision in design.html QUA-1; post them in the issue that prepares the tags.
-- [ ] 4.3 Push `extension/avro/v0.3.0` and `extension/openapi/v0.3.0` on `main`. Verify: each release has the four files, `sha256sum --check` passes, and `gh attestation verify` passes for the module and `release.json`. Send the release URLs to Damian's main session.
-- [ ] 4.4 Run `mise run openspec:validate` and `openspec validate move-avro-and-openapi-extensions --strict`. Verify: both pass.
+- [x] 4.1 After PR 3 merges, run the release workflow from `main` with `publish: false` for both tags. Verify: all jobs pass and each bundle artifact matches the extension-bundle-release spec; a run with a wrong version fails in check.
+- [x] 4.2 Run `qualify:moonbit` on both dry-run bundles (native and Node CLI, macOS locally and Linux with `qualify-moonbit.yml`, Python 0.4.2 as a control) and the finos/morphir host compatibility test with the dry-run modules. Verify: the records show exit 0 for describe and generate, or the Node result follows the decision in design.html QUA-1; post them in the issue that prepares the tags.
+- [x] 4.3 Push `extension/avro/v0.3.0` and `extension/openapi/v0.3.0` on `main`. Verify: each release has the four files, `sha256sum --check` passes, and `gh attestation verify` passes for the module and `release.json`. Send the release URLs to Damian's main session.
+- [x] 4.4 Run `mise run openspec:validate` and `openspec validate move-avro-and-openapi-extensions --strict`. Verify: both pass.
 
 ## 5. Follow-up in other repositories (FUP-1)
 
@@ -52,6 +52,13 @@ requests in FUP-1.
 - [ ] 5.3 Close bead `morphir-ukvn.1.7` with a pointer to this change and the releases. Verify: `bd show morphir-ukvn.1.7` shows it closed.
 
 ## Workflow follow-up
+
+- Release evidence: finos/morphir-extensions#11. Releases:
+  https://github.com/finos/morphir-extensions/releases/tag/extension/avro/v0.3.0 and
+  https://github.com/finos/morphir-extensions/releases/tag/extension/openapi/v0.3.0.
+- Requalify both 0.3.0 bundles through the MoonBit npm entry (`qualify:moonbit
+  --node`, macOS and Linux) when finos/morphir-moonbit#289 (bead
+  `morphir-ukvn.5.64.36.11`) is fixed, and record the result on #11.
 
 - Archive this change after the releases and the follow-up pull requests merge,
   following AGENTS.md.
