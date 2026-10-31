@@ -1,7 +1,7 @@
 # Rust extensions (rust/). Use with MISE_ENV=rust so that other jobs do not
 # install Rust. rust/rust-toolchain.toml selects the same channel.
 [tools]
-rust = { version = "1.98.1", components = "rustfmt,clippy", targets = "wasm32-unknown-unknown" }
+rust = { version = "1.99.1", components = "rustfmt,clippy", targets = "wasm32-unknown-unknown" }
 wasm-tools = "1.262.0"
 # Apache Avro Tools (rust:avro-idl) runs on Java.
 java = "temurin-21.0.13+9.0.LTS"
