@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-openapi-decimal-projection: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+.agents { border-left: 4px solid var(--link); padding-left: .8rem; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-openapi-decimal-projection: design</h1>
+<p class="meta">OpenSpec change | 2026-10-31 | proposed | bead <code>morphir-ltut</code> | finos/morphir-extensions#20</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#evidence">Evidence: how Morphir tools write a Decimal</a></li>
+<li><a href="#decisions">Decisions</a>
+<ul>
+<li><a href="#dec-1">DEC-1. A pattern-checked string by default</a></li>
+<li><a href="#dec-2">DEC-2. <code>decimal_encoding</code> for a JSON number</a></li>
+<li><a href="#dec-3">DEC-3. Optional precision and scale</a></li>
+<li><a href="#dec-4">DEC-4. One schema for both targets and both OpenAPI versions</a></li>
+<li><a href="#dec-5">DEC-5. Release 0.4.0</a></li>
+<li><a href="#dec-6">DEC-6. Other SDK types in a follow-up issue</a></li>
+<li><a href="#sch-1">SCH-1. A Decimal variant in the schema model</a></li>
+<li><a href="#tst-1">TST-1. The typed-pricing fixture in every check</a></li>
+</ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the reason. The projection in
+<code>rust/crates/morphir-openapi-extension/src/schema/types.rs</code> knows the SDK
+types <code>Bool</code>, <code>Int</code>, <code>Float</code>, <code>String</code>,
+<code>Char</code>, <code>Maybe</code>, <code>List</code>, <code>Set</code>,
+<code>Dict</code> and <code>Result</code>. Any other SDK reference falls through to
+<code>JSC003</code> (&ldquo;no schema projection&rdquo;). The schema model
+(<code>src/schema/mod.rs</code>) names no JSON Schema keyword; one shared function,
+<code>render::schema_body</code>, writes the keywords for both targets, and
+<code>render/downgrade.rs</code> rewrites the finished 3.1 document to 3.0.</p>
+<p>The Avro extension maps <code>Decimal</code> to an Avro <code>bytes</code> decimal
+with the options <code>decimal_precision</code> (default 38) and
+<code>decimal_scale</code> (default 10). Avro needs both numbers; JSON Schema does not.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> a <code>Decimal</code> schema that validates the JSON that
+Morphir data codecs write for a <code>Decimal</code> value, without loss of exactness by
+default; one projection for both targets; options whose names agree with the Avro
+extension.</p>
+<p><strong>Non-goals:</strong> schemas for other SDK types (<a href="#dec-6">DEC-6</a>);
+a value range for the number encoding; checks of the exponent limits of a specific
+runtime (Elm and MoonBit keep at most 32 fraction digits).</p>
+
+<h2 id="evidence">Evidence: how Morphir tools write a Decimal</h2>
+<p>From the reference checkouts of the Morphir repositories (2026-10-31):</p>
+<table>
+<thead><tr><th>Tool</th><th>Data value in JSON</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>morphir-elm <code>DataCodec</code></td><td>String from <code>Decimal.toString</code>
+(chain-partners/elm-bignum): no exponent, no <code>+</code>, no leading zeros, no
+<code>-0</code>, no trailing fraction zeros. The decoder reads a string it cannot parse
+as <strong>0</strong> and reports nothing.</td>
+<td><code>src/Morphir/IR/Type/DataCodec.elm</code> (encode 80&ndash;89, decode 188&ndash;207)</td></tr>
+<tr><td>morphir-elm JSON Schema backend</td><td><code>{"type": "string"}</code>, no pattern</td>
+<td><code>src/Morphir/JsonSchema/Backend.elm</code></td></tr>
+<tr><td>morphir-moonbit, morphir-python SDK</td><td><code>to_string</code> gives the same form as Elm</td>
+<td><code>pkgs/morphir-sdk/decimal/decimal.mbt</code>; <code>morphir/sdk/decimal.py</code></td></tr>
+<tr><td>morphir-rust data validator, MoonBit wire format</td><td>String in the IR v4 lexeme
+grammar (accepts <code>+</code>, <code>.5</code>, <code>1.</code>, <code>e</code>/<code>E</code>)</td>
+<td><code>morphir-core/src/data_value.rs</code>; <code>pkgs/morphir-ir/wire/helpers.mbt</code></td></tr>
+<tr><td>morphir-elm TypeScript backend, morphir-jvm (circe)</td><td><strong>JSON number</strong></td>
+<td><code>TypeScript/Backend/Types.elm</code>; <code>sdk/decimal/Codec.scala</code></td></tr>
+</tbody>
+</table>
+<p>The Morphir IR v4 specification (<code>docs/spec/ir/schemas/v4/index.md</code>) defines
+only the lexeme of a <code>DecimalLiteral</code> in the IR. It defines no data encoding,
+no precision and no scale. The OpenAPI format registry has the format
+<code>decimal</code> (&ldquo;fixed point decimal of unspecified precision and range&rdquo;)
+for both <code>string</code> and <code>number</code>.</p>
+
+<h2 id="decisions">Decisions</h2>
+<p class="agents"><strong>Decided by agents, pending Damian review</strong> (2026-10-31):
+DEC-1 to DEC-6. Damian's main session and an independent Codex reviewer reviewed them on
+the same day: DEC-2 to DEC-6 accepted as written; DEC-1 accepted with a corrected
+rationale (a positional profile, not a canonical spelling; Elm parses lowercase
+exponents; no exact Elm round trip for long fractions), which this section now has.
+Damian's blanket approval for the Avro and OpenAPI move was extended to this change on
+the same day.</p>
+
+<h3 id="dec-1">DEC-1. A pattern-checked string by default</h3>
+<pre><code class="language-json">{ "type": "string", "format": "decimal", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }</code></pre>
+<p>The pattern is a <em>positional data profile</em>: plain decimal notation with an
+optional minus sign, which every Morphir data writer emits (<code>"0"</code>,
+<code>"-0.05"</code>, <code>"33500"</code>). It is not a canonical spelling: it also
+accepts <code>"-0"</code>, <code>"-0.0"</code>, trailing fraction zeros
+(<code>"10.50"</code>, which scale-keeping writers produce) and digit strings of any
+length. It rejects an exponent, a <code>+</code> sign, <code>".5"</code>,
+<code>"1."</code> and leading zeros, because no Morphir data writer emits them. Some of
+these forms (<code>"+1"</code>, <code>".5"</code>, <code>"1."</code>, <code>"1E3"</code>)
+do not parse in the Elm decoder, which then gives 0 without an error
+(<code>DataCodec.elm</code> 188&ndash;207). Lowercase <code>"1e3"</code> parses there
+(elm-bignum <code>Decimal.elm</code> 247), so the reason to reject exponents is that no
+writer emits them, not that Elm misreads them. A JSON <code>pattern</code> is not
+anchored, so the pattern has <code>^</code> and <code>$</code>. The pattern uses only
+syntax that ECMA-262 and the Rust <code>regex</code> crate read the same way.</p>
+<p>A valid string does not promise an exact Elm round trip: elm-bignum keeps at most 32
+fraction digits and truncates the rest (<code>Decimal.elm</code> 289). Use
+<code>decimal_precision</code> and <code>decimal_scale</code> (<a href="#dec-3">DEC-3</a>)
+to bound the digits when a consumer has such a limit.</p>
+<p><em>Alternatives.</em> The full IR v4 lexeme grammar: wider, but a document valid under
+it can reach the Elm decoder and become 0. No pattern (morphir-elm's JSON Schema backend):
+does not check the value at all. A JSON number by default: loses exactness in every
+binary floating-point consumer.</p>
+
+<h3 id="dec-2">DEC-2. <code>decimal_encoding</code> for a JSON number</h3>
+<p>The option <code>decimal_encoding</code> takes <code>"string"</code> (default) or
+<code>"number"</code>. <code>"number"</code> gives
+<code>{"type": "number", "format": "decimal"}</code>, the shape that the morphir-elm
+TypeScript backend and morphir-jvm write. The format stays <code>decimal</code>, so a
+generator can still pick a decimal type. The option name is new: the Avro extension has
+no equivalent, and <code>representation</code> already means the artifact syntax there.</p>
+
+<h3 id="dec-3">DEC-3. Optional precision and scale</h3>
+<p><code>decimal_precision</code> and <code>decimal_scale</code> mean what they mean in the
+Avro extension: total significant digits, and digits after the point. Unlike Avro they
+have no default, because a Morphir <code>Decimal</code> has no fixed precision and JSON
+Schema needs none. When both are set, the pattern bounds the digits:</p>
+<table>
+<thead><tr><th>Case</th><th>Pattern</th></tr></thead>
+<tbody>
+<tr><td><code>p &gt; s &gt; 0</code> (<code>p = 10, s = 2</code>)</td><td><code>^-?(0|[1-9][0-9]{0,7})(\.[0-9]{1,2})?$</code></td></tr>
+<tr><td><code>s = 0</code> (<code>p = 5</code>)</td><td><code>^-?(0|[1-9][0-9]{0,4})$</code></td></tr>
+<tr><td><code>p = s</code> (<code>p = s = 3</code>)</td><td><code>^-?0(\.[0-9]{1,3})?$</code></td></tr>
+</tbody>
+</table>
+<p>Validation gives <code>JSC002</code> when only one is set (a scale-only or
+precision-only rule has no clear Avro counterpart and would need lookahead in the
+pattern), when the precision is outside 1 to 1000 (RE2 and the engines modelled on it,
+such as Go's <code>regexp</code>, refuse a counted repetition above 1000, so a larger
+bound would give a schema that some validators cannot compile), when the scale is above the precision,
+and when either is set with <code>decimal_encoding: "number"</code> (no exact JSON Schema
+bound exists for binary floating point; <code>multipleOf</code> on a fraction is not
+exact in most validators).</p>
+
+<h3 id="dec-4">DEC-4. One schema for both targets and both OpenAPI versions</h3>
+<p>The projection is target-independent, so the JSON Schema documents and the OpenAPI
+document get the same <code>Decimal</code> schema. The schema uses only
+<code>type</code>, <code>format</code> and <code>pattern</code>, which OpenAPI 3.0 has with
+the same meaning, so the 3.0 downgrade needs no new rule. <code>Maybe Decimal</code> is
+an <code>anyOf</code> with <code>null</code> in 3.1 and becomes the same keywords with
+<code>"nullable": true</code> in 3.0, through the existing null-union rule. A test pins
+this.</p>
+
+<h3 id="dec-5">DEC-5. Release 0.4.0</h3>
+<p>The change adds behavior and options and does not change the output for any IR that
+0.3.0 accepted, so the version is a minor bump: <code>morphir-openapi</code> 0.4.0. The
+crate version, <code>claims/expected.json</code> and <code>CHANGELOG.md</code> change in
+the same pull request. The release follows REL-1 and QUA-1 of the archived change
+<code>2026-10-31-move-avro-and-openapi-extensions</code>: the release workflow's dry run
+from <code>main</code>, then the MoonBit worker host qualification (native and npm
+entry), then the tag. Before the merge, the PR CI artifact <code>bundles-dry-run</code>
+is qualified the same way, so a host problem shows before <code>main</code> changes.</p>
+
+<h3 id="dec-6">DEC-6. Other SDK types in a follow-up issue</h3>
+<p>The same <code>JSC003</code> applies to <code>LocalDate</code>, <code>LocalTime</code>,
+<code>Month</code>, <code>DayOfWeek</code>, <code>Uuid</code>, <code>Instant</code>,
+<code>DateTime</code>, <code>Regex</code>, <code>Key</code> and the other SDK types that are
+not in the list in <a href="#context">Context</a>. The Morphir tools do not agree on a
+data encoding for them: morphir-elm <code>DataCodec</code> refuses opaque types such as
+<code>LocalDate</code>; its JSON Schema backend writes <code>Month</code> as
+<code>"January"</code> while <code>DataCodec</code> writes custom types as
+<code>["january"]</code>; the UUID module has two spellings in morphir-elm. Choosing these
+encodings is a separate decision per type, so a follow-up issue lists them, with this
+evidence, instead of this change.</p>
+
+<h3 id="sch-1">SCH-1. A Decimal variant in the schema model</h3>
+<p>The model gets <code>Schema::Decimal</code> with the encoding and the optional
+precision and scale. The renderer turns it into keywords in
+<code>render::schema_body</code>, so the pattern text exists in one place. The
+projection reads the options through its existing context.</p>
+<p><em>Alternative.</em> A general <code>pattern</code> and <code>format</code> on
+<code>Schema::Text</code>: smaller, but it puts JSON Schema keywords into the
+dialect-neutral model and loses the Morphir meaning.</p>
+
+<h3 id="tst-1">TST-1. The typed-pricing fixture in every check</h3>
+<p><code>apps/morphir-workbench/fixtures/typed-pricing.json</code> from finos/morphir-moonbit
+(commit <code>fd4026e</code>) is copied, unchanged, into the crate's test fixtures. It is
+the input of the issue and has both a record and a custom type that use
+<code>Decimal</code>. It gets golden documents for both targets and both OpenAPI versions,
+metaschema validation, and instance checks of the Decimal schema. The guest check copies
+it into its fixture directory (the existing fixture test keeps the two files equal),
+compares the module with the native crate on it, and adds Decimal option sets; the
+<code>qualify:moonbit</code> task runs it on the MoonBit host.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>A producer that writes the wider IR v4 lexeme (<code>1E+3</code>) fails validation.</td><td>Documented in the CHANGELOG. Such a string is not safe for the Elm decoder. A consumer that wants a JSON number uses <code>decimal_encoding: "number"</code>.</td></tr>
+<tr><td>A validator built on Python <code>re</code> or Java regex lets <code>$</code> match before a final newline, so it also accepts <code>"12.50\n"</code>.</td><td>JSON Schema defines <code>pattern</code> as ECMA-262, where <code>$</code> is the end of the string; the Rust test suite pins that. No end anchor works in every engine, so the limit is documented.</td></tr>
+<tr><td>Validators differ in how they treat <code>format: "decimal"</code>.</td><td>In 2020-12 an unknown format is an annotation; the pattern does the checking.</td></tr>
+<tr><td>With precision and scale, trailing fraction zeros count toward the scale (<code>"1.500"</code> fails at scale 2).</td><td>This is also the Avro meaning of scale. Documented in the option description.</td></tr>
+<tr><td>The qualification depends on a MoonBit CLI build (npm fix finos/morphir-moonbit#290).</td><td>Use #290, or <code>main</code> once it merges, and record the commit in the qualification evidence.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>No migration: options are additive and the output for IR without <code>Decimal</code>
+does not change. Rollback is to keep using the 0.3.0 bundle; releases are never
+replaced.</p>
+
+</main>
+</body>
+</html>

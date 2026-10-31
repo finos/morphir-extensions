@@ -21,6 +21,16 @@ pub struct SchemaOptions {
     pub error_status: u16,
     /// Per-operation overrides, keyed by canonical Morphir FQName.
     pub operations: BTreeMap<String, OperationOverride>,
+    /// The JSON type that a Morphir SDK `Decimal` value is written as.
+    pub decimal_encoding: DecimalEncoding,
+    /// Total significant digits of a `Decimal`, as in the Avro extension.
+    /// Unbounded when unset; set it together with [`Self::decimal_scale`].
+    pub decimal_precision: Option<u32>,
+    /// Digits after the decimal point of a `Decimal`, as in the Avro
+    /// extension. Unbounded when unset; set it together with
+    /// [`Self::decimal_precision`]. Trailing fraction zeros count, so
+    /// `"1.500"` exceeds a scale of 2.
+    pub decimal_scale: Option<u32>,
 }
 
 impl Default for SchemaOptions {
@@ -32,9 +42,17 @@ impl Default for SchemaOptions {
             result_responses: ResultResponses::Data,
             error_status: 400,
             operations: BTreeMap::new(),
+            decimal_encoding: DecimalEncoding::String,
+            decimal_precision: None,
+            decimal_scale: None,
         }
     }
 }
+
+/// The largest `decimal_precision`: it becomes a counted repetition in the
+/// `Decimal` pattern, and RE2 and the engines modelled on it (Go's `regexp`)
+/// refuse a count above 1000.
+pub const MAX_DECIMAL_PRECISION: u32 = 1000;
 
 impl SchemaOptions {
     /// Decode backend options without coercing the JSON values supplied by the host.
@@ -63,6 +81,7 @@ impl SchemaOptions {
                 self.error_status
             )));
         }
+        self.validate_decimal()?;
         for (source_name, operation) in &self.operations {
             if let Some(path) = &operation.path
                 && !path.starts_with('/')
@@ -74,6 +93,67 @@ impl SchemaOptions {
         }
         Ok(())
     }
+
+    /// The digit bounds of a `Decimal`, when both bounds are set.
+    pub fn decimal_digits(&self) -> Option<DecimalDigits> {
+        match (self.decimal_precision, self.decimal_scale) {
+            (Some(precision), Some(scale)) => Some(DecimalDigits { precision, scale }),
+            _ => None,
+        }
+    }
+
+    /// Precision and scale come as a pair, bound the string encoding only,
+    /// and keep the Avro extension's ranges: a precision of at least one and
+    /// a scale no larger than the precision.
+    fn validate_decimal(&self) -> Result<(), SchemaDiagnostic> {
+        let (precision, scale) = match (self.decimal_precision, self.decimal_scale) {
+            (None, None) => return Ok(()),
+            (Some(precision), Some(scale)) => (precision, scale),
+            _ => {
+                return Err(SchemaDiagnostic::invalid_option(
+                    "decimal_precision and decimal_scale must be set together",
+                ));
+            }
+        };
+        if self.decimal_encoding == DecimalEncoding::Number {
+            return Err(SchemaDiagnostic::invalid_option(
+                "decimal_precision and decimal_scale bound only decimal_encoding \"string\"; \
+                 a JSON number has no exact digit bound",
+            ));
+        }
+        if !(1..=MAX_DECIMAL_PRECISION).contains(&precision) {
+            return Err(SchemaDiagnostic::invalid_option(format!(
+                "decimal_precision ({precision}) must be in the range 1 through {MAX_DECIMAL_PRECISION}"
+            )));
+        }
+        if scale > precision {
+            return Err(SchemaDiagnostic::invalid_option(format!(
+                "decimal_scale ({scale}) must not exceed decimal_precision ({precision})"
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// The JSON type that a Morphir SDK `Decimal` value is written as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DecimalEncoding {
+    /// A string in plain decimal notation, which keeps the exact value.
+    #[default]
+    String,
+    /// A JSON number, which most consumers read as binary floating point.
+    Number,
+}
+
+/// The digit bounds of a `Decimal`: at most `precision` significant digits,
+/// of which at most `scale` follow the decimal point.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecimalDigits {
+    /// Total significant digits.
+    pub precision: u32,
+    /// Digits after the decimal point.
+    pub scale: u32,
 }
 
 /// How the backend reacts to a Morphir form it cannot project.

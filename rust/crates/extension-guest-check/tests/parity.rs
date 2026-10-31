@@ -44,6 +44,13 @@ fn canonical_customer() -> Value {
     .expect("the fixture is JSON")
 }
 
+fn typed_pricing() -> Value {
+    serde_json::from_str(include_str!(
+        "../../morphir-openapi-extension/tests/fixtures/typed-pricing.json"
+    ))
+    .expect("the fixture is JSON")
+}
+
 /// Every IR input of the crate tests, and two that the guest must refuse.
 fn models() -> Vec<(&'static str, Value)> {
     vec![
@@ -52,6 +59,7 @@ fn models() -> Vec<(&'static str, Value)> {
         ("v4 customer specs", v4::v4_customer_specs()),
         ("v4 incomplete library", v4::v4_incomplete_library()),
         ("canonical customer v4", canonical_customer()),
+        ("typed pricing v4", typed_pricing()),
         (
             "classic customer library",
             classic::classic_customer_library(),
@@ -152,6 +160,9 @@ fn openapi_module_answers_as_the_native_crate() {
             json!({ "unsupported": "warn-and-skip" }),
             json!({ "unsupported": "ignore" }),
             json!({ "version": "2.0" }),
+            json!({ "decimal_encoding": "number" }),
+            json!({ "decimal_precision": 10, "decimal_scale": 2, "version": "3.0" }),
+            json!({ "decimal_precision": 10 }),
         ],
     );
 }

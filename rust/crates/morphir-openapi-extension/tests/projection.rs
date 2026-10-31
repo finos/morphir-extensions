@@ -1,5 +1,6 @@
 use morphir_openapi_extension::{
-    Schema, SchemaDiagnostic, SchemaField, SchemaOptions, SchemaProjection, Unsupported, project,
+    DecimalDigits, DecimalEncoding, Schema, SchemaDiagnostic, SchemaField, SchemaOptions,
+    SchemaProjection, Unsupported, project,
 };
 use morphir_projection::{
     Constructor, DistributionKind, IncompletenessKind, NamedType, ProjectionModule,
@@ -644,4 +645,77 @@ fn a_constructor_named_kind_with_no_arguments_still_projects() {
         root(&projection, &source("flavor")),
         &Schema::Enumeration(vec!["Kind".to_owned(), "Other".to_owned()])
     );
+}
+
+const SDK_DECIMAL: &str = "morphir/SDK:decimal#decimal";
+
+fn priced(options: &SchemaOptions) -> Schema {
+    let declaration = alias(
+        "priced",
+        record(vec![("price", reference(SDK_DECIMAL, Vec::new()))]),
+    );
+    let projection = project(&package(vec![declaration]), options).expect("Decimal projects");
+    let Schema::Object { fields, .. } = root(&projection, &source("priced")) else {
+        panic!("a record alias projects as an object");
+    };
+    fields[0].schema.clone()
+}
+
+#[test]
+fn projects_decimal_as_an_unbounded_decimal_string_by_default() {
+    assert_eq!(
+        priced(&SchemaOptions::default()),
+        Schema::Decimal {
+            encoding: DecimalEncoding::String,
+            digits: None,
+        }
+    );
+}
+
+#[test]
+fn projects_decimal_as_a_number_under_the_number_encoding() {
+    let options = SchemaOptions {
+        decimal_encoding: DecimalEncoding::Number,
+        ..SchemaOptions::default()
+    };
+
+    assert_eq!(
+        priced(&options),
+        Schema::Decimal {
+            encoding: DecimalEncoding::Number,
+            digits: None,
+        }
+    );
+}
+
+#[test]
+fn carries_the_precision_and_scale_into_the_decimal_schema() {
+    let options = SchemaOptions {
+        decimal_precision: Some(10),
+        decimal_scale: Some(2),
+        ..SchemaOptions::default()
+    };
+
+    assert_eq!(
+        priced(&options),
+        Schema::Decimal {
+            encoding: DecimalEncoding::String,
+            digits: Some(DecimalDigits {
+                precision: 10,
+                scale: 2,
+            }),
+        }
+    );
+}
+
+/// `Decimal` takes no type argument; one with arguments is not the SDK type
+/// and still has no projection.
+#[test]
+fn decimal_with_an_argument_is_still_unsupported() {
+    let declaration = alias(
+        "odd",
+        reference(SDK_DECIMAL, vec![reference(SDK_STRING, Vec::new())]),
+    );
+
+    assert_eq!(strict_failure(vec![declaration]).code(), "JSC003");
 }

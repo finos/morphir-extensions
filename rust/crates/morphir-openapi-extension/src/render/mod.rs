@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value, json};
 
-use crate::{NamedSchema, Schema, SchemaVariant};
+use crate::{DecimalDigits, DecimalEncoding, NamedSchema, Schema, SchemaVariant};
 
 /// Orders every object's members by name, at every depth.
 ///
@@ -81,6 +81,20 @@ pub(crate) fn schema_body(schema: &Schema, reference_base: &str) -> Value {
             object.insert("type".to_owned(), json!("number"));
             if let Some(format) = format {
                 object.insert("format".to_owned(), json!(format));
+            }
+        }
+        Schema::Decimal { encoding, digits } => {
+            // The registered OpenAPI format `decimal` applies to both JSON
+            // types, so a generator can still choose a decimal type.
+            object.insert("format".to_owned(), json!("decimal"));
+            match encoding {
+                DecimalEncoding::String => {
+                    object.insert("type".to_owned(), json!("string"));
+                    object.insert("pattern".to_owned(), json!(decimal_pattern(*digits)));
+                }
+                DecimalEncoding::Number => {
+                    object.insert("type".to_owned(), json!("number"));
+                }
             }
         }
         Schema::Text { max_length } => {
@@ -164,6 +178,35 @@ pub(crate) fn schema_body(schema: &Schema, reference_base: &str) -> Value {
     Value::Object(object)
 }
 
+/// The anchored pattern of a `Decimal` string.
+///
+/// Unbounded, it is a positional profile: plain decimal notation with an
+/// optional minus sign, the form every Morphir data writer emits (`0`,
+/// `-0.05`, `33500`). It is not a canonical spelling, so it also accepts
+/// `-0` and trailing fraction zeros (`10.50`). It refuses an exponent, a `+`
+/// sign, `.5`, `1.` and leading zeros, which no Morphir data writer emits;
+/// several of them do not parse in morphir-elm's data decoder, which then
+/// reads 0 without an error. With [`DecimalDigits`], the integer part has at
+/// most `precision - scale` digits and the fraction at most `scale` digits.
+/// The pattern uses only syntax that ECMA-262 and the Rust `regex` crate
+/// read alike. JSON Schema defines `pattern` as ECMA-262; a validator built
+/// on Python `re` or Java regex lets `$` match before a final newline and so
+/// also accepts `"12.50\n"`, and no end anchor works in every engine.
+fn decimal_pattern(digits: Option<DecimalDigits>) -> String {
+    let Some(DecimalDigits { precision, scale }) = digits else {
+        return r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?$".to_owned();
+    };
+    let integer = match precision.saturating_sub(scale) {
+        0 => "0".to_owned(),
+        integer_digits => format!("(0|[1-9][0-9]{{0,{}}})", integer_digits - 1),
+    };
+    let fraction = match scale {
+        0 => String::new(),
+        scale => format!(r"(\.[0-9]{{1,{scale}}})?"),
+    };
+    format!("^-?{integer}{fraction}$")
+}
+
 /// One [`Schema::OneOf`] variant, with its discriminator property fixed to
 /// the constructor name by `const`.
 ///
@@ -202,5 +245,138 @@ fn as_object(value: Value) -> Map<String, Value> {
     match value {
         Value::Object(object) => object,
         other => unreachable!("schema_body always returns an object, got {other:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{DecimalDigits, DecimalEncoding};
+
+    fn decimal(encoding: DecimalEncoding, digits: Option<(u32, u32)>) -> Value {
+        schema_body(
+            &Schema::Decimal {
+                encoding,
+                digits: digits.map(|(precision, scale)| DecimalDigits { precision, scale }),
+            },
+            "#/$defs/",
+        )
+    }
+
+    /// Validate each instance against `schema` and return those it accepts.
+    fn accepted<'a>(schema: &Value, instances: &[&'a Value]) -> Vec<&'a Value> {
+        let validator = jsonschema::validator_for(schema).expect("a valid schema");
+        instances
+            .iter()
+            .copied()
+            .filter(|instance| validator.is_valid(instance))
+            .collect()
+    }
+
+    #[test]
+    fn renders_the_default_decimal_as_a_pattern_checked_string() {
+        assert_eq!(
+            decimal(DecimalEncoding::String, None),
+            json!({
+                "type": "string",
+                "format": "decimal",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+            })
+        );
+    }
+
+    #[test]
+    fn the_default_decimal_accepts_exactly_the_canonical_strings() {
+        let valid = [
+            json!("0"),
+            json!("-0.05"),
+            json!("33500"),
+            json!("12.34"),
+            json!("10.50"),
+        ];
+        let invalid = [
+            json!("1e3"),
+            json!("+1"),
+            json!(".5"),
+            json!("1."),
+            json!("007"),
+            json!(""),
+            json!(" 1"),
+            json!("1\n"),
+            json!(12.5),
+        ];
+        let schema = decimal(DecimalEncoding::String, None);
+
+        assert_eq!(
+            accepted(&schema, &valid.iter().collect::<Vec<_>>()),
+            valid.iter().collect::<Vec<_>>()
+        );
+        assert!(accepted(&schema, &invalid.iter().collect::<Vec<_>>()).is_empty());
+    }
+
+    #[test]
+    fn renders_the_number_encoding_as_a_decimal_number() {
+        assert_eq!(
+            decimal(DecimalEncoding::Number, None),
+            json!({ "type": "number", "format": "decimal" })
+        );
+    }
+
+    #[test]
+    fn bounds_the_integer_and_fraction_digits() {
+        let schema = decimal(DecimalEncoding::String, Some((10, 2)));
+
+        assert_eq!(
+            schema["pattern"],
+            json!("^-?(0|[1-9][0-9]{0,7})(\\.[0-9]{1,2})?$")
+        );
+        let valid = [json!("12345678.90"), json!("-0.5"), json!("0")];
+        let invalid = [json!("123456789.0"), json!("1.234")];
+        assert_eq!(
+            accepted(&schema, &valid.iter().collect::<Vec<_>>()),
+            valid.iter().collect::<Vec<_>>()
+        );
+        assert!(accepted(&schema, &invalid.iter().collect::<Vec<_>>()).is_empty());
+    }
+
+    #[test]
+    fn a_zero_scale_allows_no_fraction() {
+        let schema = decimal(DecimalEncoding::String, Some((5, 0)));
+
+        assert_eq!(schema["pattern"], json!("^-?(0|[1-9][0-9]{0,4})$"));
+        let valid = [json!("12345"), json!("-7")];
+        let invalid = [json!("123456"), json!("1.5")];
+        assert_eq!(
+            accepted(&schema, &valid.iter().collect::<Vec<_>>()),
+            valid.iter().collect::<Vec<_>>()
+        );
+        assert!(accepted(&schema, &invalid.iter().collect::<Vec<_>>()).is_empty());
+    }
+
+    #[test]
+    fn a_scale_equal_to_the_precision_allows_only_a_zero_integer_part() {
+        let schema = decimal(DecimalEncoding::String, Some((3, 3)));
+
+        assert_eq!(schema["pattern"], json!("^-?0(\\.[0-9]{1,3})?$"));
+        let valid = [json!("0.123"), json!("-0.5"), json!("0")];
+        let invalid = [json!("1.5"), json!("0.1234")];
+        assert_eq!(
+            accepted(&schema, &valid.iter().collect::<Vec<_>>()),
+            valid.iter().collect::<Vec<_>>()
+        );
+        assert!(accepted(&schema, &invalid.iter().collect::<Vec<_>>()).is_empty());
+    }
+
+    /// The largest precision still compiles in the Rust `regex` engine that
+    /// the validator uses.
+    #[test]
+    fn the_largest_precision_compiles() {
+        let schema = decimal(
+            DecimalEncoding::String,
+            Some((crate::MAX_DECIMAL_PRECISION, 10)),
+        );
+
+        let validator = jsonschema::validator_for(&schema).expect("a valid schema");
+        assert!(validator.is_valid(&json!("12345678901234567890.0123456789")));
     }
 }

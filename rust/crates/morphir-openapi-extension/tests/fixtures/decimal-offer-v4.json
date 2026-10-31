@@ -1,0 +1,43 @@
+{
+  "formatVersion": 4,
+  "distribution": {
+    "Library": {
+      "packageName": "pricing",
+      "dependencies": {},
+      "def": {
+        "modules": {
+          "offers": {
+            "Public": {
+              "types": {
+                "offer": {
+                  "Public": {
+                    "doc": "A price with an optional discount, both exact decimals.",
+                    "TypeAliasDefinition": {
+                      "typeParams": [],
+                      "typeExp": {
+                        "Record": {
+                          "fields": {
+                            "price": "morphir/SDK:decimal#decimal",
+                            "discount": {
+                              "Reference": {
+                                "fqname": "morphir/SDK:maybe#maybe",
+                                "args": [
+                                  "morphir/SDK:decimal#decimal"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

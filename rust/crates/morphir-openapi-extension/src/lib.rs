@@ -12,8 +12,8 @@ mod schema;
 
 pub use diagnostic::{SchemaDiagnostic, SchemaGenerationError};
 pub use options::{
-    HttpMethod, OpenApiVersion, OperationOverride, ParameterBinding, Projection, ResultResponses,
-    SchemaOptions, Unsupported,
+    DecimalDigits, DecimalEncoding, HttpMethod, MAX_DECIMAL_PRECISION, OpenApiVersion,
+    OperationOverride, ParameterBinding, Projection, ResultResponses, SchemaOptions, Unsupported,
 };
 pub use render::{render_json_schema, render_openapi};
 pub use schema::{
