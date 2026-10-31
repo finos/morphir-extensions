@@ -55,9 +55,24 @@ MISE_ENV=rust mise run rust:fmt     # --fix to format
 MISE_ENV=rust mise run rust:lint    # clippy, host and wasm32
 MISE_ENV=rust mise run rust:test
 MISE_ENV=rust mise run rust:wasm    # build, validate, import check
+MISE_ENV=rust mise run rust:guest-check   # Extism session: parity with native, claims
+MISE_ENV=rust mise run rust:avro-idl      # Apache Avro Tools on the IDL goldens (Java)
+MISE_ENV=rust mise run rust:bundle <short-id>   # local bundle in rust/target/bundle
 ```
 
 A guest may import only `extism:host/env`. `rust:wasm` fails on any other import.
+
+- `rust/extensions.toml` declares each extension (short id, crate, extension id,
+  module, extra release checks). The release workflow and the bundle script read
+  it; a new extension needs one entry there and no workflow change.
+- Each crate has `claims/expected.json`: the claims that the module must
+  describe. Update it with any change to the identity or capabilities.
+- `crates/extension-guest-check` (not published) loads a built module with the
+  Extism runtime, runs an MEP 0.1 session and compares every fixture with the
+  native crate. Its binary prints the claims for `release.json`.
+- `mise run qualify:moonbit` runs a bundle on the MoonBit worker host (native and
+  Node CLI). Run it before each release tag and put its record in the pull
+  request or issue that prepares the tag.
 
 ## Development
 
@@ -135,9 +150,11 @@ Damian review" and as a comment on the bead, then continue.
   through the build-master skill (`.github/skills/build-master/`).
 - `.github/workflows/ci.yml` selects jobs from the changed paths. Its `ci-ok` job
   always runs and is the check to require.
-- Each extension releases from a tag `extension/<short-id>/v<version>` on `main`.
+- Each extension releases from a tag `extension/<short-id>/v<version>` on `main`
+  through `.github/workflows/extension-release.yml` (see README.md, Releases).
   Create a tag only with maintainer approval. Never replace an existing release
-  or tag.
+  or tag. The stage and publish steps are to become
+  `morphir extension publish --stage` and `--release` of the MoonBit CLI.
 - After you open or push to a pull request, watch it with the pr-monitor skill
   until it merges or closes.
 

@@ -69,7 +69,7 @@ impl Extension for OpenApiExtension {
             ),
             types: vec![ExtensionType::Backend],
             author: Some("FINOS".into()),
-            homepage: Some("https://github.com/finos/morphir-rust".into()),
+            homepage: Some("https://github.com/finos/morphir-extensions".into()),
             license: Some("Apache-2.0".into()),
             min_sdk_version: Some("0.2.0".into()),
         }

@@ -146,7 +146,7 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@v5
         with:
-          install_args: rust wasm-tools
+          install_args: rust wasm-tools bun
           cache: true
 
       - name: Cache Rust dependencies
@@ -159,20 +159,63 @@ jobs:
       - name: Build, validate and check the imports of each guest
         run: mise run rust:wasm
 
-      - name: Upload the guest modules
+      - name: Guest check (parity with the native crates and the committed claims)
+        run: mise run rust:guest-check
+
+      - name: Test the bundle script
+        working-directory: .github/scripts/extension-bundle
+        run: bun test
+
+      - name: Assemble each bundle without attesting or publishing
+        run: |
+          set -euo pipefail
+          # Short ids are lowercase letters, digits and -, so word splitting is safe.
+          shorts=$(bun .github/scripts/extension-bundle/cli.ts list)
+          for short in $shorts; do
+            mise run rust:bundle "$short" --out "$GITHUB_WORKSPACE/dist/$short" --git-commit "$GITHUB_SHA"
+          done
+
+      - name: Upload the dry-run bundles
         uses: actions/upload-artifact@v6
         with:
-          name: extension-guests
-          path: rust/target/wasm32-unknown-unknown/release/*.wasm
+          name: bundles-dry-run
+          path: dist/
           if-no-files-found: error
           retention-days: 7
+
+  avro-idl:
+    name: Avro IDL
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MISE_ENV: rust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: java
+          cache: true
+
+      - name: Cache Apache Avro Tools
+        uses: actions/cache@v4
+        with:
+          path: .morphir/cache/avro
+          key: avro-tools-1.12.2
+
+      - name: Validate the Avro IDL goldens with Apache Avro Tools
+        run: mise run rust:avro-idl
 
   # The one check to require. It always runs and fails when a needed job failed
   # or was cancelled; a job that change selection skipped does not fail it.
   ci-ok:
     name: CI OK
     if: ${{ always() }}
-    needs: [changes, openspec, actionlint, rust, wasm]
+    needs: [changes, openspec, actionlint, rust, wasm, avro-idl]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#MISE description="Assemble the release bundle of one extension: <short-id> [--wasm <file>] [--out <dir>] [--git-commit <sha>]"
+. "$(dirname "$0")/_env.sh"
+set -o pipefail
+cli="../.github/scripts/extension-bundle/cli.ts"
+short="${1:?usage: mise run rust:bundle <short-id> [--wasm <file>] [--out <dir>] [--git-commit <sha>]}"
+shift
+info=$(bun "$cli" info "$short")
+module=$(printf '%s\n' "$info" | sed -n 's/^module=//p')
+wasm="target/wasm32-unknown-unknown/release/$module"
+out="target/bundle/$short"
+commit=$(git rev-parse HEAD)
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --wasm) wasm="$2"; shift 2 ;;
+        --out) out="$2"; shift 2 ;;
+        --git-commit) commit="$2"; shift 2 ;;
+        *) echo "unknown argument: $1" >&2; exit 2 ;;
+    esac
+done
+# Read the claims from the exact bytes that go into the bundle.
+claims=$(mktemp)
+trap 'rm -f "$claims"' EXIT
+cargo run --locked --quiet -p extension-guest-check -- claims "$wasm" > "$claims"
+rm -rf "$out"
+bun "$cli" bundle "$short" --wasm "$wasm" --claims "$claims" --out "$out" --git-commit "$commit"
+cd "$out"
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum --check ./*.sha256
+else
+    shasum -a 256 --check ./*.sha256
+fi

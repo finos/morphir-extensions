@@ -3,7 +3,7 @@
 `morphir-avro-extension` is a portable Morphir Extension Protocol backend for
 Apache Avro. It accepts Morphir IR v3 and v4 and returns Avro artifacts through
 the typed `GenerateRequest { ir, options }` operation. The crate is implemented
-and tested in this repository, but it has not been released.
+and tested in this repository and released as an attested bundle.
 
 The native library contains the pure normalization, projection, and rendering
 pipeline. The `wasm32-unknown-unknown` build adds a thin MEP guest. The guest
@@ -18,6 +18,9 @@ From the root of finos/morphir-extensions:
 ```console
 MISE_ENV=rust mise run rust:test
 MISE_ENV=rust mise run rust:wasm
+MISE_ENV=rust mise run rust:guest-check   # the module answers as the native crate
+MISE_ENV=rust mise run rust:avro-idl      # Apache Avro Tools 1.12.2 accepts the IDL goldens
+MISE_ENV=rust mise run rust:bundle avro   # a local bundle in rust/target/bundle/avro
 ```
 
 Or with Cargo, from `rust/`:
@@ -46,32 +49,21 @@ become a constant message in `protocol-public`, but the message contains only
 `morphir.value-kind = constant` metadata. It never contains or evaluates the
 constant value.
 
-## Release tags
+## Releases
 
-This section and the next describe the releases from finos/morphir-rust, up to
-`extension/avro/v0.2.0`.
+From `0.3.0`, this extension is released from finos/morphir-extensions by the tag
+`extension/avro/v<crate-version>`. Each release holds `morphir-avro-<version>.wasm`,
+`morphir-avro-<version>.release.json`, a `.sha256` file for each, and build
+provenance attestations. The repository README describes the release steps and
+how to verify a download.
 
+`claims/expected.json` holds the claims that the module must describe. Change it
+together with any change to the extension identity or capabilities;
+`mise run rust:guest-check` fails otherwise.
 
-An independent extension tag has the form
-`extension/avro/v<crate-version>`. A workspace tag has the form
-`v<workspace-version>` and includes Avro while its
-`.github/extensions.toml` entry has `release_with_workspace = true`. Artifact
-creation and release publication are separate jobs. The publication job uses
-the exact bundle created by the build job and never rebuilds it.
-
-See
+Releases up to `extension/avro/v0.2.0` stay in
+[finos/morphir-rust](https://github.com/finos/morphir-rust/releases), with the
+release contract described in its
 [`docs/contributors/design/extensions/README.md`](https://github.com/finos/morphir-rust/blob/945486e1320385e22986ef937db82e344b179d05/docs/contributors/design/extensions/README.md)
-for the contributor release workflow.
-
-### Bundle descriptor compatibility
-
-Newly built bundles include a version-2 `release.json` with capability claims
-read from the exact WASM being packaged and checked against
-`.github/extensions.toml`. Publishing requires Morphir CLI `0.4.0-beta.7` or
-later; older CLIs cannot read this descriptor. The versioned WASM and
-`.wasm.sha256` names are unchanged. The downloaded descriptor is still named
-`<artifact-base>-<version>.release.json`; rename it to `release.json` before
-publishing. WASM installs show `Claims: unchecked`.
-
-See the [packaging contract](https://github.com/finos/morphir-rust/blob/945486e1320385e22986ef937db82e344b179d05/docs/extensions/capability-claims.md#packaging-wasm-extensions)
-for the descriptor shape and provenance rules.
+and its
+[packaging contract](https://github.com/finos/morphir-rust/blob/945486e1320385e22986ef937db82e344b179d05/docs/extensions/capability-claims.md#packaging-wasm-extensions).

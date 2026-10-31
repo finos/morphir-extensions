@@ -18,11 +18,52 @@ extension that conforms to the Morphir Extension Protocol (MEP).
 | Avro | `morphir-avro` | `avro` | `extension/avro/v*` |
 | OpenAPI and JSON Schema | `morphir-openapi` | `openapi`, `json-schema` | `extension/openapi/v*` |
 
-The two extensions are moving here from
+The two extensions moved here from
 [finos/morphir-rust](https://github.com/finos/morphir-rust) (OpenSpec change
 [`move-avro-and-openapi-extensions`](openspec/changes/move-avro-and-openapi-extensions/proposal.md)).
-Until their first release from this repository, use the `0.2.0` releases in
-finos/morphir-rust.
+Their first release from this repository is `0.3.0`. Releases up to `0.2.0` stay in
+finos/morphir-rust. Each module is an Extism guest (`extism-kernel-v1`) for MEP
+`0.1`; the MoonBit CLI runs it from its native and its Node CLI.
+
+## Releases
+
+Each release of an extension is a GitHub release with four files:
+
+| File | Content |
+| --- | --- |
+| `<extension-id>-<version>.wasm` | The guest module |
+| `<extension-id>-<version>.wasm.sha256` | Its SHA-256, in `sha256sum` format |
+| `<extension-id>-<version>.release.json` | Descriptor `2.0.0-draft.2` with the claims of the module |
+| `<extension-id>-<version>.release.json.sha256` | Its SHA-256 |
+
+The module and `release.json` have build provenance attestations. To verify a
+download:
+
+```sh
+gh release download extension/avro/v0.3.0 --repo finos/morphir-extensions --dir avro
+cd avro
+sha256sum --check ./*.sha256
+for file in morphir-avro-0.3.0.wasm morphir-avro-0.3.0.release.json; do
+  gh attestation verify "$file" --repo finos/morphir-extensions \
+    --signer-workflow finos/morphir-extensions/.github/workflows/extension-release.yml
+done
+```
+
+To release an extension (maintainers only):
+
+1. Set the crate version, update `claims/expected.json` of the crate and
+   `CHANGELOG.md`, and merge to `main`.
+2. Run the release workflow as a dry run:
+   `gh workflow run extension-release.yml -f tag=extension/<short-id>/v<version> -f publish=false`.
+3. Download its bundle artifact and qualify it on the MoonBit worker host:
+   `mise run qualify:moonbit -- --bundle <dir> --native <morphir.exe> --node <morphir.js> --cli-commit <sha>`.
+4. Push the tag `extension/<short-id>/v<version>` on `main`. The workflow checks
+   the version and the commit, builds the module once, tests it, writes the
+   bundle, attests it, verifies the attestations and creates the release. It
+   never replaces an existing release.
+
+A new extension needs only an entry in `rust/extensions.toml` and a
+`claims/expected.json`; the workflow does not change.
 
 ## Development setup
 
@@ -41,6 +82,7 @@ The Rust extensions in `rust/` use their own mise environment:
 MISE_ENV=rust mise install
 MISE_ENV=rust mise run rust:test    # unit, golden and integration tests
 MISE_ENV=rust mise run rust:wasm    # build and check the Wasm guests
+MISE_ENV=rust mise run rust:guest-check
 ```
 
 See [AGENTS.md](AGENTS.md) for all tasks, the OpenSpec and beads workflow and the
