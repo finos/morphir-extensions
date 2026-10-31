@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Superseded pull request runs are cancelled. Runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+
+jobs:
+  openspec:
+    name: OpenSpec
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: node npm:@fission-ai/openspec http:moonbit
+          cache: true
+
+      - name: Complete the pinned MoonBit SDK for the shared checker
+        run: |
+          set -euo pipefail
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | \
+            MOON_HOME="$(mise where http:moonbit)" bash -s -- "$(mise current http:moonbit)"
+          mise exec -- moon update
+
+      - name: Check OpenSpec snapshots, schema and changes
+        run: |
+          mise run openspec:check
+          mise run openspec:validate
+          mise run openspec:test
+
+  actionlint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: actionlint
+          cache: true
+
+      - name: Lint GitHub Actions workflows
+        run: mise exec -- actionlint
+
+  # The one check to require. It always runs and fails when a needed job failed
+  # or was cancelled; a job that change selection skipped does not fail it.
+  ci-ok:
+    name: CI OK
+    if: ${{ always() }}
+    needs: [openspec, actionlint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the results of the needed jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "a needed job ended with: $result"; exit 1 ;;
+            esac
+          done

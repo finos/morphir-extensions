@@ -18,3 +18,13 @@ website/.docusaurus
 website/npm-debug.log*
 website/yarn-debug.log*
 website/yarn-error.log*
+# Rust build output
+/rust/target/
+
+# Local tool and qualification output
+/.dev/
+/.morphir/
+
+# MoonBit build output of the shared OpenSpec checker
+_build/
+.mooncakes/

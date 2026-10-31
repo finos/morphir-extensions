@@ -1,0 +1,26 @@
+# Repository tooling for finos/morphir-extensions.
+# Language tools for an extension live in their own mise environment, so a job
+# installs only what it needs: Rust extensions use .config/mise/config.rust.toml
+# (MISE_ENV=rust).
+
+[tools]
+# OpenSpec uses the same portable html-design bundle as related Morphir repos.
+node = "24.14.1"
+"npm:@fission-ai/openspec" = "1.14.3"
+# Bundle assembly and its tests.
+bun = "1.4.4"
+# GitHub Actions workflow lint.
+actionlint = "1.7.12"
+
+# The shared OpenSpec snapshot checker is a standalone MoonBit development tool.
+# To move to a newer release, change the version here and in each URL (with "+"
+# written as "%2B"), taken from https://cli.moonbitlang.com/binaries/<version>/.
+[tools."http:moonbit"]
+version = "0.10.18+6c83a7f62"
+bin_path = "bin"
+
+[tools."http:moonbit".platforms]
+linux-x64 = { url = "https://cli.moonbitlang.com/binaries/0.10.18%2B6c83a7f62/moonbit-linux-x86_64.tar.gz" }
+linux-arm64 = { url = "https://cli.moonbitlang.com/binaries/0.10.18%2B6c83a7f62/moonbit-linux-aarch64.tar.gz" }
+macos-arm64 = { url = "https://cli.moonbitlang.com/binaries/0.10.18%2B6c83a7f62/moonbit-darwin-aarch64.tar.gz" }
+windows-x64 = { url = "https://cli.moonbitlang.com/binaries/0.10.18%2B6c83a7f62/moonbit-windows-x86_64.zip", format = "zip" }
