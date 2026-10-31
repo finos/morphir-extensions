@@ -7,6 +7,12 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 ## [Unreleased]
 
+### Changed
+
+- Archive the OpenSpec change `move-avro-and-openapi-extensions`; its specs
+  `extension-bundle-release`, `avro-extension` and `openapi-extension` are now in
+  `openspec/specs/`.
+
 ## morphir-avro 0.3.0 and morphir-openapi 0.3.0 - 2026-10-31
 
 First releases from this repository: `extension/avro/v0.3.0` and
