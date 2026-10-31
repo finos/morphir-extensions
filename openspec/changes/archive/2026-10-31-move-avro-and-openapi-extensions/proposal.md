@@ -72,7 +72,8 @@ None. This repository has no specs yet.
   extension, self-approval of this change, merges after green CI, crate
   publishing if necessary and the two extension tags). Decisions that need him
   go to his main session and are marked in design.html as "decided by agents,
-  pending Damian review".
+  pending Damian review". Damian ratified all three (RUN-1, ID-1, QUA-1) on
+  2026-10-31.
 - Precedent: finos/morphir-gleam change `move-gleam-extension`.
 
 ## Impact
