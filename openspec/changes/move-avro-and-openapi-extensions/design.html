@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>move-avro-and-openapi-extensions: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .todo { fill: none; stroke: var(--muted); stroke-dasharray: 5 4; }
+svg .arrow { stroke: var(--muted); fill: none; marker-end: url(#head); }
+svg .head { fill: var(--muted); }
+.agents { border-left: 4px solid var(--link); padding-left: .8rem; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>move-avro-and-openapi-extensions: design</h1>
+<p class="meta">OpenSpec change | 2026-10-31 | approved under Damian's blanket approval of 2026-10-31</p>
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#run-1">RUN-1. Keep the Extism guest and MEP 0.1</a></li>
+  <li><a href="#set-1">SET-1. Repository setup</a></li>
+  <li><a href="#lay-1">LAY-1. Rust extensions under rust/</a></li>
+  <li><a href="#his-1">HIS-1. Import the history with git filter-repo</a></li>
+  <li><a href="#dep-1">DEP-1. Published Morphir crates only</a></li>
+  <li><a href="#id-1">ID-1. Ids, tags, versions and file names</a></li>
+  <li><a href="#tst-1">TST-1. Tests and the guest check</a></li>
+  <li><a href="#ci-1">CI-1. One CI workflow with change selection</a></li>
+  <li><a href="#rel-1">REL-1. One release workflow for every extension</a></li>
+  <li><a href="#qua-1">QUA-1. Qualify on the MoonBit worker host before a tag</a></li>
+  <li><a href="#fup-1">FUP-1. Follow-up in other repositories</a></li>
+  </ul>
+</li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation. The facts below come
+from finos/morphir-rust <code>945486e</code>, finos/morphir-moonbit <code>7dc46bd</code>,
+finos/morphir <code>791ce2f</code> and finos/morphir-gleam <code>bc91567</code> (all
+<code>main</code>, 2026-10-31).</p>
+<ul>
+<li><strong>The crates.</strong> <code>crates/morphir-avro-extension</code> (version
+0.2.0, 14 commits, 86 files) and <code>crates/morphir-openapi-extension</code> (version
+0.2.0, 32 commits, 31 files). Both are backends only. Both implement the SDK traits
+<code>Extension</code> and <code>Backend</code> and export them with
+<code>export_extension!</code>, so the Wasm module is an Extism plugin: it imports only
+<code>extism:host/env</code> and exports <code>handle</code>,
+<code>morphir_extension_info</code> and <code>morphir_extension_capabilities</code>.
+They claim MEP <code>0.1</code> only.</li>
+<li><strong>Releases.</strong> The last releases are <code>extension/avro/v0.2.0</code>
+and <code>extension/openapi/v0.2.0</code> in finos/morphir-rust (commit
+<code>04ababf</code>): a <code>.wasm</code>, its <code>.sha256</code> and a
+<code>release.json</code> <code>2.0.0-draft.2</code> with <code>runtime: "wasm"</code>.
+They have no attestation. Since then only the dependency lines in the two
+<code>Cargo.toml</code> files changed.</li>
+<li><strong>Release tooling in finos/morphir-rust.</strong> The mise tasks
+<code>extension:artifact:avro</code> and <code>extension:artifact:openapi</code> run
+the crate tests, build the module, run the installed-bundle test of
+<code>morphir-host-native</code>, check Avro IDL with Apache Avro Tools 1.12.2 (Java),
+and write the bundle with <code>scripts/package_extension.py</code>. That script reads
+the claims with the <code>extension-claims</code> binary of
+<code>morphir-host-native</code>. <code>morphir-host</code> and
+<code>morphir-host-native</code> are not on crates.io.</li>
+<li><strong>Cross-crate files.</strong> One test in each crate reads
+<code>../../morphir-projection/tests/fixtures/canonical-customer-v4.json</code>. The
+Avro README links to two documents in finos/morphir-rust <code>docs/</code>. The
+extension info of both crates sets the homepage to finos/morphir-rust.</li>
+<li><strong>The MoonBit worker host</strong> (finos/morphir-moonbit #279) runs a WASM
+guest of either ABI, <code>extism-kernel-v1</code> or <code>morphir-bytes-v1</code>, from
+the native CLI and from the Node CLI. It sends plain Morphir IR JSON to
+<code>morphir.backend.generate</code> on MEP <code>0.1</code>
+(<code>apps/morphir/docs/extension.md</code>). Neither ABI is qualified in a browser
+yet.</li>
+<li><strong>finos/morphir</strong> pins the two published bundles in
+<code>.config/published-extension-bundles.toml</code> (a pin without a
+<code>repository</code> comes from finos/morphir-rust). Its host compatibility CI runs
+them with the Rust CLI. Its tests <code>generate_extension.rs</code> and
+<code>generate_openapi_extension.rs</code> build the guests from the
+<code>ecosystem/morphir-rust</code> submodule.</li>
+<li><strong>This repository</strong> has only the FINOS blueprint. <code>main</code> is
+not protected and allows merge commits, so the history import can land with a merge
+commit.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>The two crates, their tests and their history build and test here with no checkout
+of another repository.</li>
+<li>A tag gives an attested bundle that a repository index can admit by publisher
+identity (repository and workflow).</li>
+<li>The release workflow serves every later extension of this repository, not only
+these two.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>MEP <code>0.2</code> <code>generateModel</code> and a core-Wasm
+(<code>morphir-bytes-v1</code>) artifact. They are a separate later change
+(<a href="#run-1">RUN-1</a>).</li>
+<li>Browser support. The bundles do not claim it.</li>
+<li>Changes to the projection or rendering of either extension.</li>
+<li>An extension index. The release gives what an index needs; the index is
+finos/morphir work.</li>
+</ul>
+
+<h2 id="overview">Overview</h2>
+<svg viewBox="0 0 900 270" role="img" aria-labelledby="ov-title">
+<title id="ov-title">Release flow from finos/morphir-extensions to the hosts</title>
+<defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="box" x="10" y="20" width="250" height="110" rx="6"/>
+<text x="24" y="44">finos/morphir-extensions</text>
+<text x="24" y="68">rust/crates/morphir-avro-extension</text>
+<text x="24" y="88">rust/crates/morphir-openapi-extension</text>
+<text x="24" y="112">tag extension/&lt;short-id&gt;/v0.3.0</text>
+<rect class="box" x="320" y="20" width="250" height="110" rx="6"/>
+<text x="334" y="44">extension-release.yml</text>
+<text x="334" y="68">check, build once, test</text>
+<text x="334" y="88">claims, release.json, .sha256</text>
+<text x="334" y="112">actions/attest@v4, verify</text>
+<rect class="box" x="630" y="20" width="260" height="110" rx="6"/>
+<text x="644" y="44">GitHub release</text>
+<text x="644" y="68">morphir-&lt;id&gt;-0.3.0.wasm (+.sha256)</text>
+<text x="644" y="88">morphir-&lt;id&gt;-0.3.0.release.json</text>
+<text x="644" y="108">(+.sha256), attestations</text>
+<rect class="todo" x="320" y="170" width="250" height="80" rx="6"/>
+<text x="334" y="196">finos/morphir (follow-up)</text>
+<text x="334" y="218">bundle pins, Rust CLI host</text>
+<text x="334" y="238">compatibility, docs</text>
+<rect class="box" x="630" y="170" width="260" height="80" rx="6"/>
+<text x="644" y="196">MoonBit CLI worker host</text>
+<text x="644" y="218">extism-kernel-v1, MEP 0.1</text>
+<text x="644" y="238">native and Node (QUA-1)</text>
+<path class="arrow" d="M260,75 L318,75"/>
+<path class="arrow" d="M570,75 L628,75"/>
+<path class="arrow" d="M760,130 L760,168"/>
+<path class="arrow" d="M700,130 L560,168"/>
+</svg>
+<p>Solid boxes are in this change. The dashed box is follow-up work in another
+repository.</p>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="run-1">RUN-1. Keep the Extism guest and MEP 0.1</h3>
+<p class="agents"><strong>Decided by agents, pending Damian review</strong> (Damian's main
+session and an independent Codex reviewer, 2026-10-31).</p>
+<p>The first releases from this repository ship the same kind of module as before: an
+Extism guest (<code>extism-kernel-v1</code>) that speaks MEP <code>0.1</code>.</p>
+<table>
+<thead><tr><th></th><th>A. Extism, MEP 0.1 (chosen)</th><th>B. Core-Wasm, MEP 0.2 (Gleam)</th><th>C. Both artifacts</th></tr></thead>
+<tbody>
+<tr><td>MoonBit worker host</td><td>Runs (native and Node)</td><td>Runs</td><td>Runs</td></tr>
+<tr><td>Rust CLI host compatibility in finos/morphir</td><td>Runs; pins change repository, tag and digest only</td><td>Breaks: the Rust loader needs <code>morphir_extension_info</code></td><td>Runs with the Extism artifact</td></tr>
+<tr><td>Work in this change</td><td>None in the crates</td><td>Byte-channel adapter, <code>generateModel</code>, Wasmtime host test</td><td>All of B and two claim sets</td></tr>
+</tbody>
+</table>
+<p>Gleam moved to core-Wasm because the MoonBit host then had only the
+<code>core-wasm-process</code> route. The worker host now runs both ABIs, so that reason
+does not apply. ABI and MEP version are independent: MEP <code>0.2</code>
+<code>generateModel</code> can come later on the Extism ABI (as in finos/morphir-python),
+and a core-Wasm artifact only when it gives a demonstrated benefit.</p>
+<p>Conditions of the decision: qualify the actual release bundles on the MoonBit worker
+host, native and Node, in addition to the Rust host compatibility check, before each tag
+(<a href="#qua-1">QUA-1</a>); do not claim browser support.</p>
+
+<h3 id="set-1">SET-1. Repository setup</h3>
+<p>The setup follows finos/morphir-gleam (<code>1ffb06b</code> and later) and
+finos/morphir-moonbit:</p>
+<ul>
+<li><strong>OpenSpec.</strong> <code>openspec/config.yaml</code> selects the shared
+<code>html-design</code> schema. <code>openspec/schemas/html-design/</code>,
+<code>scripts/openspec-ext.mbtx</code> and its feature file are managed snapshots
+(<code>moonrockz/openspec-ext</code> 0.1.0), locked by
+<code>openspec/extensions.lock.json</code>. Tasks <code>openspec:check</code>,
+<code>openspec:validate</code>, <code>openspec:test</code> and
+<code>openspec:setup</code>. The generated core skills are in each agent directory.</li>
+<li><strong>mise.</strong> <code>.config/mise/config.toml</code> pins node, OpenSpec
+1.14.3, bun, actionlint and MoonBit <code>0.10.18+6c83a7f62</code> (only for the
+snapshot checker). With 0.10.18 the managed checker gets the new deprecation warning
+<code>unfenced_import</code>, and <code>moon test --deny-warn</code> fails on it. The
+repository-owned task <code>openspec:test</code> therefore disables only that warning
+(<code>--warn-list -unfenced_import</code>) until upstream moves the imports into
+frontmatter. The snapshot itself does not change.</li>
+<li><strong>Agent files.</strong> <code>AGENTS.md</code> holds the policy;
+<code>CLAUDE.md</code> points to it. The pr-monitor skill comes from
+<code>DamianReeves/skills</code> (locked in <code>skills-lock.json</code>). The
+build-master skill and agent are in <code>.github/skills/build-master/</code> and
+<code>.github/agents/</code>, with discovery links in the agent directories, as in
+finos/morphir-moonbit; its repository reference describes this repository.</li>
+<li><strong>Beads.</strong> <code>.beads/config.yaml</code> points <code>bd</code> at the
+shared tracker in finos/morphir (<code>beads-sync</code>), like finos/morphir-python.
+Work for this repository has the label <code>repo:morphir-extensions</code>.</li>
+<li><strong>README.</strong> The blueprint README is replaced with a description of the
+repository, its extensions and how to verify a release. The other blueprint files stay.</li>
+</ul>
+
+<h3 id="lay-1">LAY-1. Rust extensions under rust/</h3>
+<pre><code>morphir-extensions/
+├── rust/
+│   ├── Cargo.toml                 workspace, members = ["crates/*"]
+│   ├── Cargo.lock
+│   ├── rust-toolchain.toml        1.98.1 + wasm32-unknown-unknown
+│   ├── extensions.toml            short id → crate, extension id, module file
+│   └── crates/
+│       ├── morphir-avro-extension/      imported (claims/expected.json added)
+│       ├── morphir-openapi-extension/   imported (claims/expected.json added)
+│       └── extension-guest-check/       test-only Extism host (publish = false)
+├── .config/mise/config.rust.toml   rust, wasm-tools, java (MISE_ENV=rust)
+├── .config/mise/tasks/rust/        fmt, lint, test, wasm, guest-check, avro-idl, bundle
+└── .github/workflows/ci.yml, extension-release.yml</code></pre>
+<p>A <code>rust/</code> directory leaves room for extensions in other languages and gives
+CI one path filter. Rust tools are in a separate mise environment, so the OpenSpec job
+does not install Rust. The crate names stay, so the imported history and the
+finos/morphir references stay readable.</p>
+<p><code>rust/extensions.toml</code> declares each extension once. The release workflow,
+the bundle script and the guest check read it, so a new extension needs one entry and no
+workflow edit.</p>
+<pre><code class="language-toml">[extensions.avro]
+crate = "morphir-avro-extension"
+extension-id = "morphir-avro"
+module = "morphir_avro_extension.wasm"
+
+[extensions.openapi]
+crate = "morphir-openapi-extension"
+extension-id = "morphir-openapi"
+module = "morphir_openapi_extension.wasm"</code></pre>
+
+<h3 id="his-1">HIS-1. Import the history with git filter-repo</h3>
+<p>Each crate was created in its present path and never renamed, so the import keeps all
+commits:</p>
+<pre><code class="language-console">git clone --no-local finos/morphir-rust /tmp/avro-import
+git -C /tmp/avro-import filter-repo \
+  --path crates/morphir-avro-extension \
+  --path-rename crates/morphir-avro-extension/:rust/crates/morphir-avro-extension/ \
+  --message-callback '…remove AI co-author trailers, add Imported-from trailer…'
+git fetch /tmp/avro-import main:import/avro
+git merge --allow-unrelated-histories --no-ff import/avro
+# the same for morphir-openapi-extension</code></pre>
+<p>EasyCLA checks every commit in a pull request. On 2026-10-31 the 46 commits have no AI
+co-author trailers. Two commits are from <code>renovate[bot]</code>, and one has a
+<code>Co-authored-by: Damian Reeves</code> trailer. The callback still removes AI
+trailers, so a commit that lands before the import cannot add one, and adds
+<code>Imported-from: finos/morphir-rust@&lt;sha&gt;</code> to every commit.</p>
+<p>The import pull request is merged with a merge commit, not squashed (Damian's blanket
+approval covers this). The two imports land in one pull request as two merge commits.</p>
+
+<h3 id="dep-1">DEP-1. Published Morphir crates only</h3>
+<p>The crates use <code>morphir-core</code> 0.2.0, <code>morphir-extension-sdk</code>
+0.4.0 and <code>morphir-projection</code> 0.1.0 from crates.io (with
+<code>morphir-json</code> 0.2.0, <code>morphir-workspace</code> 0.2.0 and
+<code>morphir-config</code> 0.0.1 through them). The check:</p>
+<ul>
+<li><code>morphir-extension-sdk</code>, <code>morphir-projection</code> and
+<code>morphir-json</code>: no commit on finos/morphir-rust <code>main</code> after the
+commit of their release tag.</li>
+<li><code>morphir-core</code>: four commits after 0.2.0 (<code>ff906fe</code> expanded
+literal members, <code>d04fbe5</code> and <code>6cc141c</code> bounded JSON and YAML source
+decoding, <code>c9be0e7</code> test only). The extensions use none of these APIs.</li>
+<li>A scratch workspace with the two crates of <code>945486e</code> and only crates.io
+dependencies passes every test target of both crates (15 suites) and builds both modules
+for <code>wasm32-unknown-unknown</code>.</li>
+</ul>
+<p>So no crate release is necessary. If a later change needs an unpublished change,
+finos/morphir-rust publishes it first by its crate-tag workflow; this repository never
+adds a git or path dependency.</p>
+<p>The shared fixture <code>canonical-customer-v4.json</code> is copied into each crate's
+<code>tests/fixtures/</code> from the <code>morphir-projection</code> 0.1.0 source (it has
+not changed since). The README links into finos/morphir-rust <code>docs/</code> become
+absolute links to that repository.</p>
+
+<h3 id="id-1">ID-1. Ids, tags, versions and file names</h3>
+<table>
+<thead><tr><th></th><th>Avro</th><th>OpenAPI and JSON Schema</th></tr></thead>
+<tbody>
+<tr><td>Extension id, short id</td><td><code>morphir-avro</code>, <code>avro</code></td><td><code>morphir-openapi</code>, <code>openapi</code></td></tr>
+<tr><td>Targets</td><td><code>avro</code></td><td><code>openapi</code>, <code>json-schema</code></td></tr>
+<tr><td>Tag</td><td><code>extension/avro/v0.3.0</code></td><td><code>extension/openapi/v0.3.0</code></td></tr>
+<tr><td>Module</td><td><code>morphir-avro-0.3.0.wasm</code></td><td><code>morphir-openapi-0.3.0.wasm</code></td></tr>
+<tr><td>Descriptor</td><td><code>morphir-avro-0.3.0.release.json</code></td><td><code>morphir-openapi-0.3.0.release.json</code></td></tr>
+</tbody>
+</table>
+<p>The ids, short ids and tag scheme do not change, so users and finos/morphir keep their
+names. Tags are per repository, so a tag here does not collide with the same name in
+finos/morphir-rust; an index records both by owner and repository. The OpenAPI
+extension is not split: Damian decided on 2026-10-31 to move it as one extension.</p>
+<p>The first release here is <code>0.3.0</code>: the claims change (the homepage moves to
+this repository) and the publisher changes, and a minor bump makes that visible. The file
+names follow the extension id, as in finos/morphir-gleam (<em>decided by agents, pending
+Damian review</em>). The <code>0.2.0</code> releases stay in finos/morphir-rust.</p>
+
+<h3 id="tst-1">TST-1. Tests and the guest check</h3>
+<table>
+<thead><tr><th>Level</th><th>What</th><th>Where it runs</th></tr></thead>
+<tbody>
+<tr><td>Crate tests</td><td>The imported unit, golden, projection, options and guest tests, with JSON Schema and OpenAPI metaschema validation and the Avro schema parse check (<code>apache-avro</code>).</td><td>PR CI, release</td></tr>
+<tr><td>Wasm build</td><td><code>cargo build --release --target wasm32-unknown-unknown</code>, <code>wasm-tools validate</code>, and an import check: only <code>extism:host/env</code>.</td><td>PR CI, release</td></tr>
+<tr><td>Guest check</td><td><code>extension-guest-check</code> loads each built module with the <code>extism</code> crate and runs an MEP 0.1 session (initialize, initialized, describe, generate, shutdown, exit). It compares each golden fixture with the native crate (artifacts and diagnostics), and compares the live claims with <code>claims/expected.json</code>. Its binary prints the claims that the bundle script writes.</td><td>PR CI, release</td></tr>
+<tr><td>Avro IDL</td><td>Apache Avro Tools 1.12.2 (checked SHA-512) converts each IDL golden. Ported from <code>test:avro-idl</code> in finos/morphir-rust.</td><td>PR CI when Avro changes, release of Avro</td></tr>
+<tr><td>MoonBit worker host</td><td><a href="#qua-1">QUA-1</a></td><td>Before each tag</td></tr>
+</tbody>
+</table>
+<p>The guest check replaces the installed-bundle tests of <code>morphir-host-native</code>
+(<code>installed_wasm_extension*.rs</code>), which cannot move because that crate is not
+published. It uses only crates.io crates: <code>extism</code> and
+<code>morphir-extension-sdk</code> (for <code>CapabilityClaimSet</code>).</p>
+
+<h3 id="ci-1">CI-1. One CI workflow with change selection</h3>
+<p><code>.github/workflows/ci.yml</code> runs on every pull request and on pushes to
+<code>main</code>. A <code>changes</code> job reads the changed paths. The
+<code>openspec</code> and <code>actionlint</code> jobs always run. The <code>rust</code>
+job (fmt, clippy, tests), the <code>wasm</code> job (build, import check, guest check,
+bundle dry run) and the <code>avro-idl</code> job run only when <code>rust/</code>, its
+mise files, the bundle script or the workflows change. A <code>ci-ok</code> job always
+runs, needs all others and fails when any of them failed. It is the one check to make
+required, so a skipped path-filtered job does not block a merge.</p>
+<p>Alternative: one workflow per extension with <code>paths</code> filters (finos/morphir-gleam).
+A skipped workflow cannot be a required check, so that layout has no required check for
+the extension code.</p>
+
+<h3 id="rel-1">REL-1. One release workflow for every extension</h3>
+<p><code>extension-release.yml</code> runs on tags <code>extension/*/v*</code> and on
+<code>workflow_dispatch</code> with a tag and a <code>publish</code> flag (default
+false).</p>
+<ul>
+<li><strong>check</strong>: parse the short id and version from the tag; find the entry in
+<code>rust/extensions.toml</code>; the version equals the crate version; the tag commit is
+reachable from <code>main</code>; no release exists for the tag.</li>
+<li><strong>build</strong> (Linux, once): build the module and upload it.</li>
+<li><strong>test</strong> (Linux): crate tests, the guest check on the downloaded module,
+the claims check and, for Avro, the IDL check. The module is portable Wasm, so one
+platform is enough; the MoonBit host qualification covers macOS (<a href="#qua-1">QUA-1</a>).</li>
+<li><strong>publish</strong> (permissions <code>contents: write</code>,
+<code>id-token: write</code>, <code>attestations: write</code>): write
+<code>release.json</code> with the claims from the guest check, write each
+<code>.sha256</code>, run <code>sha256sum --check</code>, run
+<code>actions/attest@v4</code> on the module and on <code>release.json</code>, run
+<code>gh attestation verify --signer-workflow</code> on both, then
+<code>gh release create "$TAG" --verify-tag --latest=false</code> with the four files.
+With <code>publish: false</code> it uploads the files as an artifact instead.</li>
+</ul>
+<p>Other jobs have <code>contents: read</code> only. The bundle script is a bun TypeScript
+file in <code>.github/scripts/extension-bundle/</code> with its own tests, as in
+finos/morphir-gleam.</p>
+<p><strong>Later switch to the MoonBit CLI.</strong> The bundle and publish steps are to
+become <code>morphir extension publish --stage</code> and
+<code>morphir extension publish --release</code> from the MoonBit CLI (finos/morphir-moonbit
+change <code>acquire-extensions-from-repositories</code>, PR #273, group 3). To make that
+switch small, the workflow keeps the steps in two named places: one step stages the bundle
+(<code>release.json</code>, <code>.sha256</code> files) into a directory, and one job
+attests and publishes that directory. The switch replaces the stage step with
+<code>--stage</code> and the <code>gh release create</code> call with
+<code>--release</code>; the check, build, test, attest and verify steps stay.</p>
+
+<h3 id="qua-1">QUA-1. Qualify on the MoonBit worker host before a tag</h3>
+<p>Before each tag, a maintainer runs the dry-run release from <code>main</code>, downloads
+the bundle and runs the task <code>qualify:moonbit</code> against a MoonBit CLI built from
+finos/morphir-moonbit <code>main</code>. The task writes a contract <code>0.2.0</code> pin
+that names the module and its <code>release.json</code>, then runs
+<code>morphir extension describe</code> and <code>morphir extension generate</code> with
+plain IR JSON for each target, with the native CLI and with the Node CLI. It records the
+CLI commit, the digests and the command results as JSON. The pull request that prepares
+the tag holds this evidence and the result of the Rust CLI host compatibility check with
+the dry-run bundle.</p>
+<p>This is a manual gate for now: there is no MoonBit CLI release for Linux to pin in CI
+(only <code>v0.1.0-demo.1</code> for macOS arm64). When one exists, the task can run in the
+release workflow.</p>
+
+<h3 id="fup-1">FUP-1. Follow-up in other repositories</h3>
+<p>Each item is a pull request in its repository, opened after the 0.3.0 releases exist.
+They are part of this approved change; nothing else in those repositories changes.</p>
+<p><strong>finos/morphir</strong></p>
+<ul>
+<li><code>.config/published-extension-bundles.toml</code>: set
+<code>repository = "finos/morphir-extensions"</code>, the new tags, artifact names and
+digests for <code>avro</code> and <code>openapi</code>; check that the host compatibility
+CI passes.</li>
+<li><code>crates/morphir/tests/generate_extension.rs</code> and
+<code>generate_openapi_extension.rs</code>: stop building the guests from
+<code>ecosystem/morphir-rust</code>; use the pinned bundles.</li>
+<li><code>docs/generate/avro.md</code>, <code>json-schema.md</code>,
+<code>openapi.md</code> and the release-manager skill: download from
+finos/morphir-extensions; add the attestation check.</li>
+<li>Beads: close <code>morphir-ukvn.1.7</code> as superseded by this change, with a
+pointer here.</li>
+</ul>
+<p><strong>finos/morphir-rust</strong></p>
+<ul>
+<li>Remove <code>crates/morphir-avro-extension</code> and
+<code>crates/morphir-openapi-extension</code>, their entries in <code>Cargo.toml</code>
+<code>default-members</code>, <code>.github/extensions.toml</code> and
+<code>.github/ci-impact.toml</code>, the tasks <code>extension/artifact/avro</code>,
+<code>extension/artifact/openapi</code> and <code>test/avro-idl</code>, and the CI tests
+that name them.</li>
+<li><code>morphir-host-native</code> uses the Avro crate as the fixture of its
+installed-bundle tests. Move those tests to another guest of that workspace (for example
+the Rust binding) or delete them with the Rust CLI.</li>
+<li>Leave a pointer to finos/morphir-extensions in <code>README.md</code> and
+<code>docs/</code>. Keep the existing <code>extension/avro/v*</code> and
+<code>extension/openapi/v*</code> releases.</li>
+</ul>
+<p><strong>finos/morphir-moonbit</strong>: no change. Optional later: add the two bundles to
+its WASM worker qualification.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Work on a crate continues in finos/morphir-rust while the move is open, and the copies drift.</td><td>Record the import revision in the import pull request. Before merge, check that no commit touches the crates after it; port any with the same filter.</td></tr>
+<tr><td>Rewritten commit messages change history.</td><td><code>Imported-from</code> trailer on each commit; the original history stays in finos/morphir-rust.</td></tr>
+<tr><td>The guest check uses the Extism Rust runtime, not the MoonBit host, so a host difference passes CI.</td><td>QUA-1 runs the bundle on the MoonBit host before each tag; the finos/morphir pin runs it on the Rust CLI.</td></tr>
+<tr><td>The managed OpenSpec checker warns on MoonBit 0.10.18.</td><td>Only <code>unfenced_import</code> is allowed; other warnings still fail. Report it upstream.</td></tr>
+<tr><td>A tag on the wrong commit or with the wrong version.</td><td>The check job refuses it before any build; releases are never replaced.</td></tr>
+<tr><td>finos/morphir still pins the 0.2.0 bundles until its follow-up merges.</td><td>The 0.2.0 releases stay in finos/morphir-rust, so nothing breaks in between.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>PR 1: repository setup and this change (SET-1, CI-1 without the Rust jobs).</li>
+<li>PR 2: history import of both crates (merge commit), the <code>rust/</code> workspace,
+crates.io dependencies, fixtures and links, the Rust mise environment and the Rust CI jobs.
+The crates are still 0.2.0.</li>
+<li>PR 3: guest check crate, expected claims, Avro IDL task, bundle script, release
+workflow, homepage and version 0.3.0, README and CHANGELOG.</li>
+<li>Dry-run release from <code>main</code> for both extensions; QUA-1 and the Rust host
+check on the dry-run bundles.</li>
+<li>Tags <code>extension/avro/v0.3.0</code> and <code>extension/openapi/v0.3.0</code>;
+verify the assets and attestations.</li>
+<li>FUP-1 pull requests in finos/morphir and finos/morphir-rust.</li>
+</ol>
+<p>Rollback: nothing outside this repository uses the new releases until the finos/morphir
+pins move. A bad release can be deleted before that; the 0.2.0 releases stay.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>When to add MEP <code>0.2</code> <code>generateModel</code> to both extensions (a separate change).</li>
+<li>When to run QUA-1 in CI, which needs a pinned MoonBit CLI release for Linux.</li>
+</ul>
+
+</main>
+</body>
+</html>

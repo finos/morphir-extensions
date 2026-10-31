@@ -1,47 +1,68 @@
-<img align="right" width="40%" src="https://www.finos.org/hubfs/FINOS/finos-logo/FINOS_Icon_Wordmark_Name_RGB_horizontal.png">
+[![FINOS - Incubating](https://cdn.jsdelivr.net/gh/finos/contrib-toolbox@master/images/badge-incubating.svg)](https://community.finos.org/docs/governance/lifecycle-stages/incubating)
 
-# FINOS Software Project Blueprint
+# Morphir Extensions
 
-Project blueprint is a GitHub repository template for all [Fintech Open Source Foundation (FINOS)](https://www.finos.org/) hosted GitHub repositories, contributed and maintained by FINOS.
+General-purpose extensions for [Morphir](https://morphir.finos.org). An extension
+here does not belong to one language repository: it projects a Morphir model into a
+schema or interface format, for example. Each extension is released from this
+repository as an attested bundle that a Morphir CLI can verify and install.
 
-## How to use this blueprint
+The main Morphir CLI is the MoonBit CLI,
+[finos/morphir-moonbit](https://github.com/finos/morphir-moonbit). It runs any
+extension that conforms to the Morphir Extension Protocol (MEP).
 
-Please also follow the instructions on [community.finos.org/docs/collaboration-infrastructure#finos-project-blueprint](https://community.finos.org/docs/collaboration-infrastructure#finos-project-blueprint).
+## Extensions
 
-1. Click **Use this template** on this repository and follow GitHub's instructions.
-2. In your new repository, copy `README.template.md` to `README.md` (replacing this file).
-3. Search and replace the following tokens across the copied files:
+| Extension | Id | Targets | Release tags |
+| --- | --- | --- | --- |
+| Avro | `morphir-avro` | `avro` | `extension/avro/v*` |
+| OpenAPI and JSON Schema | `morphir-openapi` | `openapi`, `json-schema` | `extension/openapi/v*` |
 
-| Token | Replace with |
-| ----- | ------------ |
-| `{PROJECT_NAME}` | The name of the FINOS project, e.g. `Open Developer Platform` |
-| `{PROJECT_SLUG}` | The GitHub repository name, e.g. `software-project-blueprint` |
-| `{PROJECT_URL}` | The GitHub repository URL, e.g. `https://github.com/finos/software-project-blueprint` |
-| `{PROJECT_MAILING_LIST}` | The project mailing list address, if any |
-| `{YYYY}` | The year you started working on the code |
-| `{CURRENT_YEAR}` | The current year |
-| `{NAME_OF_COPYRIGHT_OWNER}` | The copyright owner of the code (typically you or your employer) |
-| `{EMAIL_OF_COPYRIGHT_OWNER}` | The email address of the copyright owner of the code (if known) |
-| `{OTHER_NOTICES}` | Additional NOTICE attributions required by dependencies, or remove this token |
+The two extensions are moving here from
+[finos/morphir-rust](https://github.com/finos/morphir-rust) (OpenSpec change
+[`move-avro-and-openapi-extensions`](openspec/changes/move-avro-and-openapi-extensions/proposal.md)).
+Until their first release from this repository, use the `0.2.0` releases in
+finos/morphir-rust.
 
-4. Open the `NOTICE` file and either remove `{OTHER_NOTICES}` or add attributions if required by your code's dependencies.
-5. Open `README.md` and complete the content as appropriate for your project.
-6. Open `MAINTAINERS.md` and add maintainer names, GitHub usernames, and email addresses.
-7. (Optional) Remove the `docs/` and `website/` folders if you do not need a project documentation website.
+## Development setup
 
-Placeholders use `{UPPER_SNAKE_CASE}` tokens throughout the blueprint.
+Install [mise](https://mise.jdx.dev), then:
 
-## Blueprint preview
+```sh
+mise install                  # pinned repository tools
+mise run openspec:check       # managed OpenSpec snapshot is unchanged
+mise run openspec:validate    # schema and every change, strict
+mise run openspec:test        # tests of the shared checker
+```
 
-A preview of the blueprint can be found on [project-blueprint.finos.org](https://project-blueprint.finos.org)
+See [AGENTS.md](AGENTS.md) for the OpenSpec and beads workflow and the
+contribution rules.
 
-## Governance
+## Contributing
 
-This blueprint implements [FINOS open source software project governance](https://community.finos.org/docs/governance/#open-source-software-projects) on community.finos.org.
+For questions, bugs or feature requests, open an
+[issue](https://github.com/finos/morphir-extensions/issues).
+
+To submit a contribution:
+
+1. Fork it (<https://github.com/finos/morphir-extensions/fork>)
+2. Create your feature branch (`git checkout -b feature/fooBar`)
+3. Read our [contribution guidelines](CONTRIBUTING.md) and [Community Code of Conduct](https://www.finos.org/code-of-conduct)
+4. Commit your changes (`git commit -am 'Add some fooBar'`)
+5. Push to the branch (`git push origin feature/fooBar`)
+6. Create a new Pull Request
+
+_NOTE:_ Commits and pull requests to FINOS repositories are accepted only from
+contributors who have signed a CLA through
+[EasyCLA](https://community.finos.org/docs/governance/Software-Projects/easycla).
+Read [FINOS Contribution Requirements](https://community.finos.org/docs/governance/Software-Projects/contribution-compliance-requirements)
+before you contribute.
+
+*Questions about CLA, DCO, or EasyCLA? Email [help@finos.org](mailto:help@finos.org)*
 
 ## License
 
-Copyright 2019 Fintech Open Source Foundation
+Copyright 2026 FINOS
 
 Distributed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 

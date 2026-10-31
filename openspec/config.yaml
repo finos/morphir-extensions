@@ -1,0 +1,22 @@
+schema: html-design
+githubCopilot:
+  cloudAgent: false
+context: |
+  finos/morphir-extensions holds general-purpose Morphir extensions: extensions
+  that do not belong to one language repository. Each extension is released as
+  an attested bundle (a guest module, release.json, .sha256 files and GitHub
+  artifact attestations) under its own tag extension/<short-id>/v<version>.
+  The MoonBit Morphir CLI (finos/morphir-moonbit) is the main host; the Rust CLI
+  (finos/morphir-rust) is being sunset. Extensions written in Rust live under
+  rust/ as one Cargo workspace and use the published Morphir crates from
+  crates.io; never a git or path dependency on another repository.
+  Reference the Morphir Extension Protocol (MEP) and the IR specification in
+  finos/morphir for compatibility.
+  Tool versions and file-based tasks live in .config/mise/; language tools sit
+  in their own mise environment (MISE_ENV=rust).
+  Track work in the shared beads tracker (label repo:morphir-extensions) and
+  submit contributions through pull requests, following CONTRIBUTING.md,
+  AGENTS.md and the FINOS CLA requirements. Never add AI co-author lines.
+  Update CHANGELOG.md under Unreleased for changes.
+  Use the shared html-design schema for new changes and keep repository policy
+  in this config and AGENTS.md. Do not edit managed schema templates.

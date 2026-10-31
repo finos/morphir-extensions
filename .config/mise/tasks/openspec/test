@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Test the shared OpenSpec workflow and setup isolation"
+set -euo pipefail
+
+# MoonBit 0.10.18 deprecates imports outside frontmatter (unfenced_import). The
+# checker is a managed snapshot that still uses them, so allow only that warning
+# until the upstream snapshot moves its imports into frontmatter.
+exec mise exec -- moon test --deny-warn --warn-list -unfenced_import --target wasm scripts/openspec-ext.mbtx

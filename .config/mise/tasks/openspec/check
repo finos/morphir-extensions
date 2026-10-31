@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Check the shared OpenSpec ownership lock"
+set -euo pipefail
+
+exec mise exec -- moon run -q --target wasm scripts/openspec-ext.mbtx -- check
