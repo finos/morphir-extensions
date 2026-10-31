@@ -181,3 +181,107 @@ fn project_validates_a_hand_built_options_struct_directly() {
 
     assert_eq!(error.code(), "JSC002");
 }
+
+use morphir_openapi_extension::DecimalEncoding;
+
+#[test]
+fn defaults_to_an_unbounded_decimal_string() {
+    let options = SchemaOptions::default();
+
+    assert_eq!(options.decimal_encoding, DecimalEncoding::String);
+    assert_eq!(options.decimal_precision, None);
+    assert_eq!(options.decimal_scale, None);
+}
+
+#[test]
+fn decodes_the_documented_decimal_option_spellings() {
+    let options = SchemaOptions::from_map(&map([("decimal_encoding", json!("number"))]))
+        .expect("the documented spelling decodes");
+    assert_eq!(options.decimal_encoding, DecimalEncoding::Number);
+
+    let options = SchemaOptions::from_map(&map([
+        ("decimal_encoding", json!("string")),
+        ("decimal_precision", json!(10)),
+        ("decimal_scale", json!(2)),
+    ]))
+    .expect("precision and scale decode together");
+    assert_eq!(options.decimal_encoding, DecimalEncoding::String);
+    assert_eq!(options.decimal_precision, Some(10));
+    assert_eq!(options.decimal_scale, Some(2));
+}
+
+#[test]
+fn accepts_a_scale_equal_to_the_precision_and_a_zero_scale() {
+    for (precision, scale) in [(3, 3), (5, 0), (1, 0), (1000, 1000)] {
+        SchemaOptions::from_map(&map([
+            ("decimal_precision", json!(precision)),
+            ("decimal_scale", json!(scale)),
+        ]))
+        .unwrap_or_else(|error| panic!("({precision}, {scale}) is valid: {error}"));
+    }
+}
+
+/// Every combination the `openapi-extension` spec rejects is a `JSC002`.
+#[test]
+fn rejects_every_invalid_decimal_option() {
+    let cases = [
+        (
+            "unknown encoding",
+            map([("decimal_encoding", json!("float"))]),
+        ),
+        ("precision alone", map([("decimal_precision", json!(10))])),
+        ("scale alone", map([("decimal_scale", json!(2))])),
+        (
+            "zero precision",
+            map([("decimal_precision", json!(0)), ("decimal_scale", json!(0))]),
+        ),
+        (
+            "precision above 1000",
+            map([
+                ("decimal_precision", json!(1001)),
+                ("decimal_scale", json!(2)),
+            ]),
+        ),
+        (
+            "scale above precision",
+            map([("decimal_precision", json!(4)), ("decimal_scale", json!(5))]),
+        ),
+        (
+            "negative scale",
+            map([
+                ("decimal_precision", json!(4)),
+                ("decimal_scale", json!(-1)),
+            ]),
+        ),
+        (
+            "bounds with the number encoding",
+            map([
+                ("decimal_encoding", json!("number")),
+                ("decimal_precision", json!(10)),
+                ("decimal_scale", json!(2)),
+            ]),
+        ),
+    ];
+    for (case, options) in cases {
+        let error =
+            SchemaOptions::from_map(&options).expect_err(&format!("{case} is an invalid option"));
+        assert_eq!(error.code(), "JSC002", "{case}: {error}");
+    }
+}
+
+#[test]
+fn validate_rejects_directly_built_invalid_decimal_options() {
+    let options = SchemaOptions {
+        decimal_precision: Some(2),
+        decimal_scale: Some(3),
+        ..SchemaOptions::default()
+    };
+
+    assert_eq!(
+        options
+            .validate()
+            .expect_err("scale above precision")
+            .code(),
+        "JSC002"
+    );
+}

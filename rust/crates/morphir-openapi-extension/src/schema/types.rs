@@ -6,7 +6,7 @@ use morphir_projection::{Constructor, NamedType, TypeDeclaration, TypeExpr};
 
 use super::names::{field_name, schema_name, variant_name};
 use super::{Schema, SchemaField, SchemaVariant};
-use crate::SchemaDiagnostic;
+use crate::{SchemaDiagnostic, SchemaOptions};
 
 const SDK_BOOL: &str = "morphir/SDK:basics#bool";
 const SDK_INT: &str = "morphir/SDK:basics#int";
@@ -18,6 +18,7 @@ const SDK_LIST: &str = "morphir/SDK:list#list";
 const SDK_SET: &str = "morphir/SDK:set#set";
 const SDK_DICT: &str = "morphir/SDK:dict#dict";
 const SDK_RESULT: &str = "morphir/SDK:result#result";
+const SDK_DECIMAL: &str = "morphir/SDK:decimal#decimal";
 
 /// The property name that tells one custom-type variant from another.
 pub(super) const DISCRIMINATOR: &str = "kind";
@@ -26,6 +27,23 @@ pub(super) const DISCRIMINATOR: &str = "kind";
 pub(super) struct Context<'a> {
     /// Every declaration visible to this projection, keyed by canonical FQName.
     pub(super) declared: &'a BTreeMap<String, TypeDeclaration>,
+    /// The schema of the SDK `Decimal`, fixed by the `decimal_*` options.
+    decimal: Schema,
+}
+
+impl<'a> Context<'a> {
+    pub(super) fn new(
+        declared: &'a BTreeMap<String, TypeDeclaration>,
+        options: &SchemaOptions,
+    ) -> Self {
+        Self {
+            declared,
+            decimal: Schema::Decimal {
+                encoding: options.decimal_encoding,
+                digits: options.decimal_digits(),
+            },
+        }
+    }
 }
 
 /// Project one Morphir declaration into a schema.
@@ -220,6 +238,7 @@ fn project_reference(
         (SDK_CHAR, 0) => Ok(Schema::Text {
             max_length: Some(1),
         }),
+        (SDK_DECIMAL, 0) => Ok(context.decimal.clone()),
         (SDK_MAYBE, 1) => Ok(Schema::Union(vec![argument(0, referenced)?, Schema::Null])),
         (SDK_LIST, 1) => Ok(Schema::Array {
             items: Box::new(argument(0, referenced)?),

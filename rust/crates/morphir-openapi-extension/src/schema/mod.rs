@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use morphir_projection::{ProjectionPackage, TypeDeclaration};
 
-use crate::{SchemaDiagnostic, SchemaOptions, Unsupported};
+use crate::{DecimalDigits, DecimalEncoding, SchemaDiagnostic, SchemaOptions, Unsupported};
 use types::{Context, project_declaration};
 
 /// A Morphir type expressed as target-independent schema meaning.
@@ -33,6 +33,13 @@ pub enum Schema {
     Number {
         /// Precision hint carried through to the renderer.
         format: Option<&'static str>,
+    },
+    /// An exact decimal number: the Morphir SDK `Decimal`.
+    Decimal {
+        /// The JSON type a value is written as.
+        encoding: DecimalEncoding,
+        /// Digit bounds, when the options set them.
+        digits: Option<DecimalDigits>,
     },
     /// Text, optionally bounded in length.
     Text {
@@ -160,9 +167,7 @@ pub fn project(
 ) -> Result<SchemaProjection, SchemaDiagnostic> {
     options.validate()?;
     let declared = declared_types(package);
-    let context = Context {
-        declared: &declared,
-    };
+    let context = Context::new(&declared, options);
 
     let mut owned = Vec::new();
     let mut queue = VecDeque::new();
@@ -360,6 +365,7 @@ pub(crate) fn references(schema: &Schema) -> Vec<&str> {
         Schema::Boolean
         | Schema::Integer { .. }
         | Schema::Number { .. }
+        | Schema::Decimal { .. }
         | Schema::Text { .. }
         | Schema::Null
         | Schema::Enumeration(_) => Vec::new(),

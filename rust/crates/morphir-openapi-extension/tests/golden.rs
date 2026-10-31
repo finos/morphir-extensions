@@ -393,6 +393,20 @@ fn rendered_option_matrix() -> Vec<(&'static str, Value, HashMap<String, Value>)
             .into_iter()
             .collect(),
         ),
+        ("typed pricing", typed_pricing(), HashMap::new()),
+        (
+            "typed pricing with the number encoding",
+            typed_pricing(),
+            options(&[("decimal_encoding", json!("number"))]),
+        ),
+        (
+            "an optional decimal with precision and scale",
+            decimal_offer(),
+            options(&[
+                ("decimal_precision", json!(10)),
+                ("decimal_scale", json!(2)),
+            ]),
+        ),
     ]
 }
 
@@ -464,4 +478,171 @@ fn the_vendored_metaschemas_reject_an_invalid_document() {
             .is_some(),
         "the 3.0 metaschema must reject a duplicated `required` entry"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Decimal (finos/morphir-extensions#20)
+// ---------------------------------------------------------------------------
+
+/// `apps/morphir-workbench/fixtures/typed-pricing.json` from
+/// finos/morphir-moonbit at `fd4026e`, unchanged: the IR v4 model that 0.3.0
+/// refused with `JSC003`. Its record `quote` and its custom type `status`
+/// both use `Decimal`.
+fn typed_pricing() -> Value {
+    serde_json::from_str(include_str!("fixtures/typed-pricing.json")).expect("the fixture is JSON")
+}
+
+/// A record with a `Decimal` field and a `Maybe Decimal` field.
+fn decimal_offer() -> Value {
+    serde_json::from_str(include_str!("fixtures/decimal-offer-v4.json"))
+        .expect("the fixture is JSON")
+}
+
+fn options(entries: &[(&str, Value)]) -> HashMap<String, Value> {
+    entries
+        .iter()
+        .map(|(key, value)| ((*key).to_owned(), value.clone()))
+        .collect()
+}
+
+#[test]
+fn typed_pricing_matches_the_reviewed_json_schema_goldens() {
+    let result = generate(typed_pricing());
+
+    assert!(result.success, "{:?}", result.diagnostics);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let paths: Vec<&str> = result
+        .artifacts
+        .iter()
+        .map(|artifact| artifact.path.as_str())
+        .collect();
+    assert_eq!(
+        paths,
+        ["quotes.Quote.schema.json", "quotes.Status.schema.json"]
+    );
+    for artifact in &result.artifacts {
+        let name = format!("typed-pricing.{}", artifact.path);
+        assert_eq!(artifact.content, golden(&name, &artifact.content), "{name}");
+    }
+}
+
+#[test]
+fn typed_pricing_matches_the_reviewed_openapi_goldens() {
+    for (version, name) in [
+        ("3.1", "typed-pricing.openapi-3.1.json"),
+        ("3.0", "typed-pricing.openapi-3.0.json"),
+    ] {
+        let result = generate_openapi(typed_pricing(), options(&[("version", json!(version))]));
+
+        assert!(result.success, "{version}: {:?}", result.diagnostics);
+        assert!(
+            result.diagnostics.is_empty(),
+            "{version}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(result.artifacts.len(), 1);
+        let content = &result.artifacts[0].content;
+        assert_eq!(content, &golden(name, content), "{name}");
+    }
+}
+
+/// The JSON Schema of `quote` accepts the JSON that Morphir data codecs
+/// write for a quote, and refuses a binary number or an exponent.
+#[test]
+fn the_typed_pricing_quote_schema_validates_morphir_data() {
+    let result = generate(typed_pricing());
+    let artifact = result
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.path == "quotes.Quote.schema.json")
+        .expect("the quote document is generated");
+    let schema: Value = serde_json::from_str(&artifact.content).expect("valid JSON");
+    let validator = jsonschema::validator_for(&schema).expect("a valid 2020-12 schema");
+
+    for price in ["12.50", "0", "-0.05", "33500"] {
+        assert!(
+            validator.is_valid(&json!({ "price": price, "quantity": 3 })),
+            "{price}"
+        );
+    }
+    for price in [json!(12.5), json!("1e3"), json!("+1"), json!(".5")] {
+        assert!(
+            !validator.is_valid(&json!({ "price": price, "quantity": 3 })),
+            "{price}"
+        );
+    }
+}
+
+/// The same `Decimal` schema in the 2020-12 document, the OpenAPI 3.1
+/// document and the OpenAPI 3.0 document; under 3.0 a `Maybe Decimal` keeps
+/// the keywords and adds `nullable`.
+#[test]
+fn decimal_has_one_schema_in_every_output() {
+    let decimal = json!({
+        "type": "string",
+        "format": "decimal",
+        "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    });
+
+    let json_schema = generate(decimal_offer());
+    let document: Value =
+        serde_json::from_str(&json_schema.artifacts[0].content).expect("valid JSON");
+    assert_eq!(document["properties"]["price"], decimal);
+
+    let v31 = generate_openapi(decimal_offer(), HashMap::new());
+    let v31: Value = serde_json::from_str(&v31.artifacts[0].content).expect("valid JSON");
+    let offer = &v31["components"]["schemas"]["Offer"];
+    assert_eq!(offer["properties"]["price"], decimal);
+    assert_eq!(
+        offer["properties"]["discount"],
+        json!({ "anyOf": [decimal, { "type": "null" }] })
+    );
+
+    let v30 = generate_openapi(decimal_offer(), options(&[("version", json!("3.0"))]));
+    assert!(v30.diagnostics.is_empty(), "{:?}", v30.diagnostics);
+    let v30: Value = serde_json::from_str(&v30.artifacts[0].content).expect("valid JSON");
+    let offer = &v30["components"]["schemas"]["Offer"];
+    assert_eq!(offer["properties"]["price"], decimal);
+    let mut nullable = decimal.clone();
+    nullable["nullable"] = json!(true);
+    assert_eq!(offer["properties"]["discount"], nullable);
+}
+
+#[test]
+fn the_decimal_options_reach_the_rendered_schema() {
+    let field = |entries: &[(&str, Value)]| {
+        let result = generate_openapi(decimal_offer(), options(entries));
+        assert!(result.success, "{:?}", result.diagnostics);
+        let document: Value =
+            serde_json::from_str(&result.artifacts[0].content).expect("valid JSON");
+        document["components"]["schemas"]["Offer"]["properties"]["price"].clone()
+    };
+
+    assert_eq!(
+        field(&[("decimal_encoding", json!("number"))]),
+        json!({ "type": "number", "format": "decimal" })
+    );
+    assert_eq!(
+        field(&[
+            ("decimal_precision", json!(10)),
+            ("decimal_scale", json!(2))
+        ]),
+        json!({
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?(0|[1-9][0-9]{0,7})(\\.[0-9]{1,2})?$"
+        })
+    );
+}
+
+#[test]
+fn an_invalid_decimal_option_fails_with_jsc002_and_no_artifacts() {
+    let result = generate_openapi(
+        decimal_offer(),
+        options(&[("decimal_encoding", json!("float"))]),
+    );
+
+    assert!(!result.success);
+    assert!(result.artifacts.is_empty());
+    assert_eq!(result.diagnostics[0].code.as_deref(), Some("JSC002"));
 }

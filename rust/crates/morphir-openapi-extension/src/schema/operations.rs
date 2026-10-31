@@ -125,9 +125,7 @@ pub fn project_operations(
     }
 
     let declared = declared_types(package);
-    let context = Context {
-        declared: &declared,
-    };
+    let context = Context::new(&declared, options);
 
     let mut operations = Vec::new();
     let mut claimed_paths: BTreeMap<String, String> = BTreeMap::new();
