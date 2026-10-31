@@ -1,0 +1,21 @@
+[package]
+name = "extension-guest-check"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Loads a built Morphir extension guest with Extism, runs MEP 0.1 sessions and reads its claims"
+publish = false
+
+[dependencies]
+extism = "1"
+morphir-extension-sdk = "0.4.0"
+serde_json = "1.0"
+
+[dev-dependencies]
+morphir-avro-extension = { path = "../morphir-avro-extension" }
+morphir-openapi-extension = { path = "../morphir-openapi-extension" }
+morphir-projection = { version = "0.1.0", features = ["testing"] }
+pretty_assertions = "1.4"

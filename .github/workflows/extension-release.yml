@@ -1,0 +1,291 @@
+name: Extension release
+
+# Releases one extension of this repository as an attested bundle (OpenSpec spec
+# extension-bundle-release). A tag extension/<short-id>/v<version> selects the
+# extension from rust/extensions.toml. The module is built once; the same bytes
+# are tested, bundled, attested and attached to the GitHub release.
+#
+# A manual run with publish: false is a dry run. It needs no tag: when the tag
+# does not exist yet, it builds the commit it runs on, which must be on main. It
+# uploads the bundle as a workflow artifact and attests and publishes nothing.
+#
+# The stage job and the publish job are kept apart so that they can become
+# `morphir extension publish --stage` and `--release` of the MoonBit CLI.
+on:
+  push:
+    tags:
+      - "extension/*/v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, extension/<short-id>/v<version>"
+        required: true
+        type: string
+      publish:
+        description: "Attest and publish the release (false: dry run)"
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  MISE_ENV: rust
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+
+jobs:
+  check:
+    name: Check the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+      publish: ${{ steps.release.outputs.publish }}
+      short-id: ${{ steps.select.outputs.short-id }}
+      version: ${{ steps.select.outputs.version }}
+      crate: ${{ steps.select.outputs.crate }}
+      extension-id: ${{ steps.select.outputs.extension-id }}
+      module: ${{ steps.select.outputs.module }}
+      checks: ${{ steps.select.outputs.checks }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the tag, the commit and the publish flag
+        id: release
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "push" ]; then
+            tag="$GITHUB_REF_NAME"; publish=true
+          else
+            tag="$INPUT_TAG"; publish="$INPUT_PUBLISH"
+          fi
+          if sha=$(git rev-parse --verify --quiet "refs/tags/$tag^{commit}"); then
+            echo "tag $tag is commit $sha"
+          elif [ "$publish" = "true" ]; then
+            echo "::error::tag $tag does not exist; push it before publishing"; exit 1
+          else
+            sha="$GITHUB_SHA"
+            echo "tag $tag does not exist yet; the dry run builds $sha"
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha is not on main"; exit 1
+          fi
+          if [ "$publish" = "true" ] && gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::a release for $tag already exists; releases are never replaced"; exit 1
+          fi
+          git checkout --quiet "$sha"
+          { echo "tag=$tag"; echo "sha=$sha"; echo "publish=$publish"; } >> "$GITHUB_OUTPUT"
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: bun
+          cache: true
+
+      - name: Select the extension and check its version
+        id: select
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          bun .github/scripts/extension-bundle/cli.ts select "$TAG" | tee -a "$GITHUB_OUTPUT"
+
+  build:
+    name: Build the module
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: rust wasm-tools
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: wasm
+          save-if: false
+
+      - name: Build, validate and check the imports of the guests
+        run: mise run rust:wasm
+
+      - name: Upload the module
+        uses: actions/upload-artifact@v6
+        with:
+          name: module
+          path: rust/target/wasm32-unknown-unknown/release/${{ needs.check.outputs.module }}
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Test the module
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: rust wasm-tools java bun
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: native
+          save-if: false
+
+      - name: Download the module
+        uses: actions/download-artifact@v7
+        with:
+          name: module
+          path: guest
+
+      - name: Crate tests
+        env:
+          CRATE: ${{ needs.check.outputs.crate }}
+        run: cd rust && cargo test --locked -p "$CRATE"
+
+      - name: Guest check of the built module (parity and claims)
+        env:
+          EXTENSION_GUEST_DIR: ${{ github.workspace }}/guest
+          SHORT_ID: ${{ needs.check.outputs.short-id }}
+        run: mise run rust:guest-check "$SHORT_ID"
+
+      - name: Extension checks
+        env:
+          CHECKS: ${{ needs.check.outputs.checks }}
+        run: |
+          set -euo pipefail
+          for task in $CHECKS; do mise run "$task"; done
+
+  stage:
+    name: Stage the bundle
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: rust bun
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: native
+          save-if: false
+
+      - name: Download the module
+        uses: actions/download-artifact@v7
+        with:
+          name: module
+          path: guest
+
+      - name: Write release.json and the checksums
+        env:
+          SHORT_ID: ${{ needs.check.outputs.short-id }}
+          MODULE: ${{ needs.check.outputs.module }}
+          SHA: ${{ needs.check.outputs.sha }}
+        run: |
+          mise run rust:bundle "$SHORT_ID" --wasm "$GITHUB_WORKSPACE/guest/$MODULE" \
+            --out "$GITHUB_WORKSPACE/dist" --git-commit "$SHA"
+          ls -l dist
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: bundle-${{ needs.check.outputs.short-id }}-${{ needs.check.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Attest and publish
+    needs: [check, stage]
+    if: ${{ needs.check.outputs.publish == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.check.outputs.tag }}
+      BASE: ${{ needs.check.outputs.extension-id }}-${{ needs.check.outputs.version }}
+    steps:
+      - name: Download the bundle
+        uses: actions/download-artifact@v7
+        with:
+          name: bundle-${{ needs.check.outputs.short-id }}-${{ needs.check.outputs.version }}
+          path: dist
+
+      - name: Check the bundle files and checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          expected=$(printf '%s\n' "$BASE.release.json" "$BASE.release.json.sha256" "$BASE.wasm" "$BASE.wasm.sha256")
+          actual=$(find . -maxdepth 1 -type f -printf '%f\n' | sort)
+          [ "$actual" = "$(echo "$expected" | sort)" ] || { echo "::error::unexpected files: $actual"; exit 1; }
+          sha256sum --check ./*.sha256
+
+      - name: Attest the module and release.json
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/${{ env.BASE }}.wasm
+            dist/${{ env.BASE }}.release.json
+
+      - name: Verify the attestations
+        run: |
+          set -euo pipefail
+          for file in "dist/$BASE.wasm" "dist/$BASE.release.json"; do
+            gh attestation verify "$file" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/extension-release.yml"
+          done
+
+      - name: Create the GitHub release
+        env:
+          EXTENSION_ID: ${{ needs.check.outputs.extension-id }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --latest=false \
+            --title "$EXTENSION_ID $VERSION" \
+            --notes "Morphir extension \`$EXTENSION_ID\` $VERSION: an Extism guest (\`extism-kernel-v1\`) for MEP 0.1, with \`release.json\`, SHA-256 files and build provenance attestations. Verify an asset with \`gh attestation verify <file> --repo $GITHUB_REPOSITORY --signer-workflow $GITHUB_REPOSITORY/.github/workflows/extension-release.yml\`."

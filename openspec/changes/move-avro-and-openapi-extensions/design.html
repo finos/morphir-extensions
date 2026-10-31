@@ -241,6 +241,8 @@ repository, its extensions and how to verify a release. The other blueprint file
 │       └── extension-guest-check/       test-only Extism host (publish = false)
 ├── .config/mise/config.rust.toml   rust, wasm-tools, java (MISE_ENV=rust)
 ├── .config/mise/tasks/rust/        fmt, lint, test, wasm, guest-check, avro-idl, bundle
+├── .config/mise/tasks/qualify/     moonbit (QUA-1)
+├── .github/scripts/extension-bundle/  bundle.ts, cli.ts, bundle.test.ts (bun)
 └── .github/workflows/ci.yml, extension-release.yml</code></pre>
 <p>A <code>rust/</code> directory leaves room for extensions in other languages and gives
 CI one path filter. Rust tools are in a separate mise environment, so the OpenSpec job
@@ -253,11 +255,15 @@ workflow edit.</p>
 crate = "morphir-avro-extension"
 extension-id = "morphir-avro"
 module = "morphir_avro_extension.wasm"
+checks = ["rust:avro-idl"]
 
 [extensions.openapi]
 crate = "morphir-openapi-extension"
 extension-id = "morphir-openapi"
-module = "morphir_openapi_extension.wasm"</code></pre>
+module = "morphir_openapi_extension.wasm"
+checks = []</code></pre>
+<p><code>checks</code> names extra mise tasks that the release runs for that extension,
+so an extension-specific check also needs no workflow edit.</p>
 
 <h3 id="his-1">HIS-1. Import the history with git filter-repo</h3>
 <p>Each crate was created in its present path and never renamed, so the import keeps all
@@ -328,7 +334,7 @@ Damian review</em>). The <code>0.2.0</code> releases stay in finos/morphir-rust.
 <tbody>
 <tr><td>Crate tests</td><td>The imported unit, golden, projection, options and guest tests, with JSON Schema and OpenAPI metaschema validation and the Avro schema parse check (<code>apache-avro</code>).</td><td>PR CI, release</td></tr>
 <tr><td>Wasm build</td><td><code>cargo build --release --target wasm32-unknown-unknown</code>, <code>wasm-tools validate</code>, and an import check: only <code>extism:host/env</code>.</td><td>PR CI, release</td></tr>
-<tr><td>Guest check</td><td><code>extension-guest-check</code> loads each built module with the <code>extism</code> crate and runs an MEP 0.1 session (initialize, initialized, describe, generate, shutdown, exit). It compares each golden fixture with the native crate (artifacts and diagnostics), and compares the live claims with <code>claims/expected.json</code>. Its binary prints the claims that the bundle script writes.</td><td>PR CI, release</td></tr>
+<tr><td>Guest check</td><td><code>extension-guest-check</code> loads each built module with the <code>extism</code> crate, with no WASI, and runs an MEP 0.1 session (describe, initialize, generate, shutdown, exit). It does not send the <code>morphir.initialized</code> notification: the SDK's Extism guests answer only requests through <code>handle</code>, and Extism hosts drop notifications, as the Rust host does. It compares every projection fixture (IR v3 and v4, and two invalid models) under several option sets with the native crate (artifacts and diagnostics), and compares the live claims with <code>claims/expected.json</code>. Its binary prints the claims that the bundle script writes.</td><td>PR CI, release</td></tr>
 <tr><td>Avro IDL</td><td>Apache Avro Tools 1.12.2 (checked SHA-512) converts each IDL golden. Ported from <code>test:avro-idl</code> in finos/morphir-rust.</td><td>PR CI when Avro changes, release of Avro</td></tr>
 <tr><td>MoonBit worker host</td><td><a href="#qua-1">QUA-1</a></td><td>Before each tag</td></tr>
 </tbody>
@@ -343,7 +349,7 @@ published. It uses only crates.io crates: <code>extism</code> and
 <code>main</code>. A <code>changes</code> job reads the changed paths. The
 <code>openspec</code> and <code>actionlint</code> jobs always run. The <code>rust</code>
 job (fmt, clippy, tests), the <code>wasm</code> job (build, import check, guest check,
-bundle dry run) and the <code>avro-idl</code> job run only when <code>rust/</code>, its
+bundle script tests, a dry-run bundle of each extension) and the <code>avro-idl</code> job run only when <code>rust/</code>, its
 mise files, the bundle script or the workflows change. A <code>ci-ok</code> job always
 runs, needs all others and fails when any of them failed. It is the one check to make
 required, so a skipped path-filtered job does not block a merge.</p>
@@ -358,19 +364,23 @@ false).</p>
 <ul>
 <li><strong>check</strong>: parse the short id and version from the tag; find the entry in
 <code>rust/extensions.toml</code>; the version equals the crate version; the tag commit is
-reachable from <code>main</code>; no release exists for the tag.</li>
+reachable from <code>main</code>; when publishing, no release exists for the tag. A dry run
+for a tag that does not exist yet builds the commit it runs on, which must be on
+<code>main</code>; publishing needs the tag.</li>
 <li><strong>build</strong> (Linux, once): build the module and upload it.</li>
 <li><strong>test</strong> (Linux): crate tests, the guest check on the downloaded module,
 the claims check and, for Avro, the IDL check. The module is portable Wasm, so one
 platform is enough; the MoonBit host qualification covers macOS (<a href="#qua-1">QUA-1</a>).</li>
-<li><strong>publish</strong> (permissions <code>contents: write</code>,
-<code>id-token: write</code>, <code>attestations: write</code>): write
-<code>release.json</code> with the claims from the guest check, write each
-<code>.sha256</code>, run <code>sha256sum --check</code>, run
+<li><strong>stage</strong> (always): write <code>release.json</code> with the claims that
+the guest check reads from the downloaded module, write each <code>.sha256</code>, run
+<code>sha256sum --check</code>, and upload the four files as a workflow artifact. This is
+the dry-run result.</li>
+<li><strong>publish</strong> (only for a tag push or <code>publish: true</code>; permissions
+<code>contents: write</code>, <code>id-token: write</code>, <code>attestations: write</code>):
+download the staged files, check the file set and checksums, run
 <code>actions/attest@v4</code> on the module and on <code>release.json</code>, run
 <code>gh attestation verify --signer-workflow</code> on both, then
-<code>gh release create "$TAG" --verify-tag --latest=false</code> with the four files.
-With <code>publish: false</code> it uploads the files as an artifact instead.</li>
+<code>gh release create "$TAG" --verify-tag --latest=false</code> with the four files.</li>
 </ul>
 <p>Other jobs have <code>contents: read</code> only. The bundle script is a bun TypeScript
 file in <code>.github/scripts/extension-bundle/</code> with its own tests, as in
@@ -397,7 +407,24 @@ the tag holds this evidence and the result of the Rust CLI host compatibility ch
 the dry-run bundle.</p>
 <p>This is a manual gate for now: there is no MoonBit CLI release for Linux to pin in CI
 (only <code>v0.1.0-demo.1</code> for macOS arm64). When one exists, the task can run in the
-release workflow.</p>
+release workflow. Each command has a deadline and a watchdog, so a host that does not exit
+fails the run as <code>hung</code> instead of blocking it.</p>
+<p><strong>Finding (2026-10-31).</strong> On finos/morphir-moonbit <code>af16f0b</code>, macOS
+arm64, the native CLI passes describe and generate (IR v3 and v4, every target) for both
+bundles. The npm CLI (<code>node apps/morphir/bin/morphir.js</code>, Node 24.14.1 and 24.22.1)
+reports <code>extension.cancelled</code> after about 0.5 s for every Extism pin and does not
+exit. It does the same with the published finos/morphir-python 0.4.2 bundle, so the defect is
+in the host, not in these bundles: finos/morphir-moonbit#289, bead
+<code>morphir-ukvn.5.64.36.11</code>. The Rust CLI host compatibility test of finos/morphir
+passes for both bundles with pins that change only repository, tag, artifact and digest.</p>
+<p class="agents"><strong>Decided by agents, pending Damian review</strong> (Damian's main session
+and an independent Codex reviewer, 2026-10-31): run the same check on Linux with the manual
+workflow <code>qualify-moonbit.yml</code> (native and npm entry, Node 24.22.1, Python 0.4.2 as a
+control). If Linux passes, tag with native, Linux Node and Rust host evidence and record the
+macOS Node hang as a known host limitation. If Linux fails the same way for the control too,
+tag anyway: the defect carries no signal about these bundles; record it with the reproduction
+and requalify on Node when the host is fixed. If Linux fails only for Avro or OpenAPI while
+the control passes, do not tag; investigate the bundles.</p>
 
 <h3 id="fup-1">FUP-1. Follow-up in other repositories</h3>
 <p>Each item is a pull request in its repository, opened after the 0.3.0 releases exist.

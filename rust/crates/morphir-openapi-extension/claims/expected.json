@@ -1,0 +1,36 @@
+{
+  "capabilities": {
+    "backend": {
+      "generate": true,
+      "irVersions": [
+        "3",
+        "4"
+      ],
+      "targets": [
+        "openapi",
+        "json-schema"
+      ]
+    },
+    "cancellation": false,
+    "incremental": false,
+    "progress": false,
+    "streaming": false
+  },
+  "claimsVersion": "0.1.0-draft.2",
+  "extension": {
+    "author": "FINOS",
+    "description": "Projects Morphir specifications into OpenAPI and JSON Schema",
+    "homepage": "https://github.com/finos/morphir-extensions",
+    "id": "morphir-openapi",
+    "license": "Apache-2.0",
+    "min_sdk_version": "0.2.0",
+    "name": "Morphir OpenAPI",
+    "types": [
+      "backend"
+    ],
+    "version": "0.3.0"
+  },
+  "protocolVersions": [
+    "0.1"
+  ]
+}

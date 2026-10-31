@@ -41,7 +41,7 @@ fn extension_metadata_and_backend_capabilities_match_mep() {
     assert_eq!(info.license.as_deref(), Some("Apache-2.0"));
     assert_eq!(
         info.homepage.as_deref(),
-        Some("https://github.com/finos/morphir-rust")
+        Some("https://github.com/finos/morphir-extensions")
     );
     assert_eq!(info.min_sdk_version.as_deref(), Some("0.2.0"));
 

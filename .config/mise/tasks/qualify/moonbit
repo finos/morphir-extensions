@@ -1,0 +1,179 @@
+#!/usr/bin/env bun
+//MISE description="Qualify a release bundle on the MoonBit worker host (native and Node CLI): --bundle <dir> --native <morphir.exe> --node <morphir.js> --cli-commit <sha> [--out <record.json>] [--describe-only]"
+
+// OpenSpec change move-avro-and-openapi-extensions, design.html QUA-1. Runs
+// `morphir extension describe` and `morphir extension generate` (plain IR JSON,
+// MEP 0.1) for every claimed target and both IR fixtures, with a contract 0.2.0
+// pin that names the module and its release.json. Writes a JSON record and exits
+// non-zero when any command fails.
+
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+const root = resolve(import.meta.dir, "../../../..");
+const fixtures = join(root, "rust/crates/extension-guest-check/fixtures");
+
+function flag(name: string): string | undefined {
+  const at = process.argv.indexOf(`--${name}`);
+  return at >= 0 ? process.argv[at + 1] : undefined;
+}
+
+function required(name: string): string {
+  const value = flag(name);
+  if (!value) throw new Error(`--${name} is required`);
+  return value;
+}
+
+function sha256(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+const bundle = resolve(required("bundle"));
+const files = readdirSync(bundle);
+const wasmName = files.find((f) => f.endsWith(".wasm"));
+const descriptorName = files.find((f) => f.endsWith(".release.json"));
+if (!wasmName || !descriptorName) throw new Error(`${bundle} has no .wasm or no .release.json`);
+const wasm = join(bundle, wasmName);
+const descriptorPath = join(bundle, descriptorName);
+const descriptor = JSON.parse(readFileSync(descriptorPath, "utf8"));
+const claims = descriptor.artifacts[0].claims;
+const targets: string[] = claims.capabilities.backend?.targets ?? [];
+const work = resolve(flag("work") ?? join(root, ".dev/qualify", `${descriptor.extensionId}-${descriptor.version}`));
+rmSync(work, { recursive: true, force: true });
+mkdirSync(work, { recursive: true });
+
+const pin = join(work, "pin.json");
+writeFileSync(
+  pin,
+  `${JSON.stringify(
+    {
+      contractVersion: "0.2.0",
+      artifact: { path: wasm, sha256: sha256(wasm) },
+      runtime: { kind: "wasm", abi: "extism-kernel-v1" },
+      descriptor: { path: descriptorPath, sha256: sha256(descriptorPath) },
+      origin: `finos/morphir-extensions ${descriptor.shortId} ${descriptor.version} at ${descriptor.gitCommit}`,
+    },
+    null,
+    2,
+  )}\n`,
+);
+
+const hosts: { kind: string; command: string[]; path: string }[] = [];
+const native = flag("native");
+const node = flag("node");
+if (native) hosts.push({ kind: "native", command: [resolve(native)], path: resolve(native) });
+if (node) hosts.push({ kind: "node", command: ["node", resolve(node)], path: resolve(node) });
+if (hosts.length === 0) throw new Error("give --native, --node or both");
+
+const models = [
+  { name: "canonical-customer-v4", path: join(fixtures, "canonical-customer-v4.json") },
+  { name: "classic-schema-library-v3", path: join(fixtures, "classic-schema-library-v3.json") },
+];
+
+interface Run {
+  host: string;
+  command: string;
+  target?: string;
+  model?: string;
+  exitCode: number;
+  state?: string;
+  error?: unknown;
+  extension?: unknown;
+  protocolVersion?: unknown;
+  worker?: unknown;
+  files?: number;
+}
+
+// The CLI's own deadline is COMMAND_MS. A host that does not exit within
+// KILL_MS is killed and the run fails as "hung".
+const COMMAND_MS = 60_000;
+const KILL_MS = 90_000;
+
+function run(host: (typeof hosts)[number], args: string[], extra: Partial<Run>): Run {
+  const result = Bun.spawnSync(
+    [...host.command, ...args, "--extension-pin", pin, "--timeout", String(COMMAND_MS), "--json"],
+    { cwd: work, stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: KILL_MS, killSignal: "SIGKILL" },
+  );
+  if (result.exitedDueToTimeout) {
+    return {
+      host: host.kind,
+      command: args.slice(0, 2).join(" "),
+      ...extra,
+      exitCode: -1,
+      state: "hung",
+      error: { stdout: result.stdout.toString().slice(-2000), stderr: result.stderr.toString().slice(-2000) },
+    };
+  }
+  let report: Record<string, any> = {};
+  try {
+    report = JSON.parse(result.stdout.toString());
+  } catch {
+    report = { state: "unreadable", error: result.stderr.toString().slice(-2000) };
+  }
+  return {
+    host: host.kind,
+    command: args.slice(0, 2).join(" "),
+    ...extra,
+    exitCode: result.exitCode ?? -1,
+    state: report.state,
+    error: report.error,
+    extension: report.result?.extension,
+    protocolVersion: report.result?.protocolVersion,
+    worker: report.result?.worker ? { kind: report.result.worker.kind, runtime: report.result.worker.runtime } : undefined,
+    files: report.result?.output?.files?.length,
+  };
+}
+
+// --describe-only checks only the host and the describe answer, for a control
+// bundle whose backend need not accept these fixtures.
+const describeOnly = process.argv.includes("--describe-only");
+const runs: Run[] = [];
+for (const host of hosts) {
+  runs.push(run(host, ["extension", "describe"], {}));
+  for (const target of describeOnly ? [] : targets) {
+    for (const model of models) {
+      const output = join(work, `${host.kind}-${target}-${model.name}`);
+      runs.push(
+        run(host, ["extension", "generate", model.path, "--output", output, "--target", target], {
+          target,
+          model: model.name,
+        }),
+      );
+    }
+  }
+}
+
+const passed = runs.every(
+  (r) =>
+    r.exitCode === 0 &&
+    r.state === "succeeded" &&
+    (r.command !== "extension generate" || (r.files ?? 0) > 0),
+);
+const record = {
+  qualification: "moonbit-worker-host",
+  passed,
+  date: new Date().toISOString(),
+  bundle: {
+    extensionId: descriptor.extensionId,
+    version: descriptor.version,
+    gitCommit: descriptor.gitCommit,
+    wasm: { file: wasmName, sha256: sha256(wasm) },
+    descriptor: { file: descriptorName, sha256: sha256(descriptorPath) },
+  },
+  cli: {
+    repository: "finos/morphir-moonbit",
+    commit: required("cli-commit"),
+    hosts: hosts.map((h) => ({ kind: h.kind, path: h.path, sha256: existsSync(h.path) ? sha256(h.path) : null })),
+  },
+  runs,
+};
+const out = resolve(flag("out") ?? join(work, "record.json"));
+writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
+for (const r of runs) {
+  console.log(
+    `${r.exitCode === 0 && r.state === "succeeded" ? "ok  " : "FAIL"} ${r.host} ${r.command}${r.target ? ` --target ${r.target}` : ""}${r.model ? ` ${r.model}` : ""}: exit ${r.exitCode}${r.files !== undefined ? `, ${r.files} files` : ""}${r.error ? ` ${JSON.stringify(r.error)}` : ""}`,
+  );
+}
+console.log(`${passed ? "passed" : "FAILED"}; record in ${out}`);
+process.exit(passed ? 0 : 1);

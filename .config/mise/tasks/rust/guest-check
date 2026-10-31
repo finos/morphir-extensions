@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Build the release guests and check them with Extism: parity with the native crates and the committed claims"
+. "$(dirname "$0")/_env.sh"
+# EXTENSION_GUEST_DIR selects modules that are already built (for example a
+# downloaded workflow artifact); then nothing is built here.
+if [ -z "${EXTENSION_GUEST_DIR:-}" ]; then
+    cargo build --locked --release --workspace --exclude extension-guest-check --target wasm32-unknown-unknown
+fi
+# Extra arguments filter the tests, for example "avro" for one extension.
+cargo test --locked -p extension-guest-check -- --ignored "$@"

@@ -19,3 +19,17 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
   Schema extension (`morphir-openapi-extension`), imported with their history from
   finos/morphir-rust at `945486e`. They build against the published Morphir crates
   from crates.io. Rust CI jobs run when `rust/` or its tooling changes.
+- `extension-guest-check`: a test-only Extism host that runs each built module in an
+  MEP 0.1 session, compares it with the native crate and reads its claims.
+- `.github/workflows/extension-release.yml`: one release workflow for every
+  extension, with `release.json`, `.sha256` files and verified build provenance
+  attestations; `rust/extensions.toml` declares the extensions.
+- `rust:avro-idl` (Apache Avro Tools 1.12.2), `qualify:moonbit` (MoonBit worker
+  host, native and Node CLI) and the manual workflow `qualify-moonbit.yml` (the
+  same check on Linux, with the Python 0.4.2 bundle as a control).
+
+### Changed
+
+- `morphir-avro` and `morphir-openapi` 0.3.0: the homepage is
+  finos/morphir-extensions, and the release files are named after the extension
+  id (`morphir-avro-0.3.0.wasm`, `morphir-openapi-0.3.0.wasm`).

@@ -1,0 +1,21 @@
+# The extensions of this Cargo workspace. The release workflow, the bundle script
+# and the guest check read this file: a new extension needs one entry here and no
+# workflow change. The table key is the short id of the release tag
+# extension/<short-id>/v<version>.
+#
+# crate         the Cargo package; its version is the extension version
+# extension-id  the id that the guest describes and the bundle file names use
+# module        the file that cargo builds under target/wasm32-unknown-unknown/release
+# checks        extra mise tasks that the release runs for this extension
+
+[extensions.avro]
+crate = "morphir-avro-extension"
+extension-id = "morphir-avro"
+module = "morphir_avro_extension.wasm"
+checks = ["rust:avro-idl"]
+
+[extensions.openapi]
+crate = "morphir-openapi-extension"
+extension-id = "morphir-openapi"
+module = "morphir_openapi_extension.wasm"
+checks = []

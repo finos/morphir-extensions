@@ -1,0 +1,10 @@
+# Goldens, fixtures and claims are compared byte for byte. Keep text LF on every
+# system, including Windows checkouts with autocrlf, as in finos/morphir-rust.
+* text=auto eol=lf
+*.wasm binary
+*.jar binary
+*.pdf binary
+*.png binary
+*.ico binary
+*.jpg binary
+*.svg text eol=lf

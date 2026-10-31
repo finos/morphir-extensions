@@ -1,0 +1,149 @@
+name: MoonBit host qualification
+
+# Manual check of the extension bundles on the MoonBit worker host on Linux
+# (OpenSpec change move-avro-and-openapi-extensions, design.html QUA-1). It
+# builds the MoonBit CLI from finos/morphir-moonbit at a pinned commit, builds a
+# bundle of each extension from this commit, and runs qualify:moonbit with the
+# native CLI and with the npm entry (node apps/morphir/bin/morphir.js). The
+# finos/morphir-python 0.4.2 bundle is a control: it separates a host defect
+# from a bundle defect. Every command has a deadline and a watchdog, and the
+# job checks that no CLI process is left after each bundle.
+on:
+  workflow_dispatch:
+    inputs:
+      moonbit-ref:
+        description: "finos/morphir-moonbit commit to build the CLI from"
+        required: true
+        type: string
+        default: af16f0bec2a6de8e3b6f6fba0631f7846742d554
+      node-version:
+        description: "Node version for the npm entry"
+        required: true
+        type: string
+        default: 24.22.1
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  MISE_ENV: rust
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+
+jobs:
+  qualify:
+    name: Qualify on Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: rust wasm-tools bun
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: wasm
+          save-if: false
+
+      - name: Build a bundle of each extension
+        run: |
+          set -euo pipefail
+          mise run rust:wasm
+          shorts=$(bun .github/scripts/extension-bundle/cli.ts list)
+          for short in $shorts; do
+            mise run rust:bundle "$short" --out "$RUNNER_TEMP/bundles/$short"
+          done
+
+      - name: Download the Python 0.4.2 control bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download extension/python/v0.4.2 --repo finos/morphir-python \
+            --pattern '*.wasm' --pattern '*.release.json' --dir "$RUNNER_TEMP/bundles/python"
+
+      - name: Checkout finos/morphir-moonbit
+        uses: actions/checkout@v6
+        with:
+          repository: finos/morphir-moonbit
+          ref: ${{ inputs.moonbit-ref }}
+          path: moonbit
+
+      # Outside this checkout, so that mise does not merge this repository's
+      # configuration into the MoonBit one.
+      - name: Build the native and the npm MoonBit CLI
+        env:
+          MISE_ENV: ""
+        run: |
+          set -euo pipefail
+          mv moonbit "$RUNNER_TEMP/moonbit"
+          cd "$RUNNER_TEMP/moonbit"
+          mise trust --yes .
+          mise install
+          mise exec -- moon update
+          mise exec -- moon build apps/morphir --target native --release
+          mise exec -- bun install --frozen-lockfile
+          mise exec -- bun run --cwd apps/morphir build
+          ls -l _build/native/release/build/morphir/morphir/morphir.exe apps/morphir/bin/morphir.js \
+            apps/morphir/dist/morphir.js apps/morphir/dist/wasm-worker.js
+
+      - name: Install the Node version for the npm entry
+        env:
+          NODE_VERSION: ${{ inputs.node-version }}
+        run: mise install "node@$NODE_VERSION"
+
+      - name: Qualify each bundle (native and npm entry)
+        env:
+          MISE_NODE_VERSION: ${{ inputs.node-version }}
+        run: |
+          set -uo pipefail
+          native="$RUNNER_TEMP/moonbit/_build/native/release/build/morphir/morphir/morphir.exe"
+          node_cli="$RUNNER_TEMP/moonbit/apps/morphir/bin/morphir.js"
+          commit=$(git -C "$RUNNER_TEMP/moonbit" rev-parse HEAD)
+          mkdir -p "$RUNNER_TEMP/records"
+          mise exec -- node --version
+          failed=""
+          for bundle in avro openapi python; do
+            extra=()
+            [ "$bundle" = python ] && extra=(--describe-only)
+            echo "::group::$bundle"
+            timeout -s KILL 1800 mise run qualify:moonbit -- --bundle "$RUNNER_TEMP/bundles/$bundle" \
+              --native "$native" --node "$node_cli" --cli-commit "$commit" \
+              --work "$RUNNER_TEMP/work/$bundle" --out "$RUNNER_TEMP/records/$bundle.json" "${extra[@]}" \
+              || failed="$failed $bundle"
+            if pgrep -af 'morphir\.(exe|js)'; then
+              echo "::error::$bundle left CLI processes running"
+              pkill -9 -f 'morphir\.(exe|js)' || true
+              failed="$failed $bundle(processes)"
+            fi
+            echo "::endgroup::"
+          done
+          {
+            echo "## MoonBit host qualification"
+            echo
+            echo "finos/morphir-moonbit \`$commit\`, Node \`$(mise exec -- node --version)\`"
+            echo
+            for record in "$RUNNER_TEMP"/records/*.json; do
+              echo "- \`$(basename "$record" .json)\`: $(jq -r 'if .passed then "passed" else "FAILED" end' "$record")"
+              jq -r '.runs[] | "  - \(.host) \(.command) \(.target // "") \(.model // ""): \(.state) (exit \(.exitCode))"' "$record"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$failed" ]; then
+            echo "::error::failed:$failed"
+            exit 1
+          fi
+
+      - name: Upload the qualification records
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: moonbit-qualification
+          path: ${{ runner.temp }}/records/
+          if-no-files-found: warn
+          retention-days: 30
