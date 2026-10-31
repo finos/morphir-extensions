@@ -111,20 +111,33 @@ for both <code>string</code> and <code>number</code>.</p>
 
 <h2 id="decisions">Decisions</h2>
 <p class="agents"><strong>Decided by agents, pending Damian review</strong> (2026-10-31):
-DEC-1 to DEC-6. The decisions with their evidence went to Damian's main session as a
-status message. Damian's blanket approval for the Avro and OpenAPI move was extended to
-this change on the same day.</p>
+DEC-1 to DEC-6. Damian's main session and an independent Codex reviewer reviewed them on
+the same day: DEC-2 to DEC-6 accepted as written; DEC-1 accepted with a corrected
+rationale (a positional profile, not a canonical spelling; Elm parses lowercase
+exponents; no exact Elm round trip for long fractions), which this section now has.
+Damian's blanket approval for the Avro and OpenAPI move was extended to this change on
+the same day.</p>
 
 <h3 id="dec-1">DEC-1. A pattern-checked string by default</h3>
 <pre><code class="language-json">{ "type": "string", "format": "decimal", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }</code></pre>
-<p>The pattern accepts every string that a canonical Morphir writer emits
-(<code>"0"</code>, <code>"-0.05"</code>, <code>"33500"</code>) and the scale-keeping
-form that some writers keep (<code>"10.50"</code>). It rejects the forms that the Elm
-decoder silently reads as 0: an exponent, a <code>+</code> sign, <code>".5"</code>,
-<code>"1."</code>. It also rejects leading zeros, which no writer emits. A JSON
-<code>pattern</code> is not anchored, so the pattern has <code>^</code> and
-<code>$</code>. The pattern uses only syntax that ECMA-262 and the Rust
-<code>regex</code> crate read the same way.</p>
+<p>The pattern is a <em>positional data profile</em>: plain decimal notation with an
+optional minus sign, which every Morphir data writer emits (<code>"0"</code>,
+<code>"-0.05"</code>, <code>"33500"</code>). It is not a canonical spelling: it also
+accepts <code>"-0"</code>, <code>"-0.0"</code>, trailing fraction zeros
+(<code>"10.50"</code>, which scale-keeping writers produce) and digit strings of any
+length. It rejects an exponent, a <code>+</code> sign, <code>".5"</code>,
+<code>"1."</code> and leading zeros, because no Morphir data writer emits them. Some of
+these forms (<code>"+1"</code>, <code>".5"</code>, <code>"1."</code>, <code>"1E3"</code>)
+do not parse in the Elm decoder, which then gives 0 without an error
+(<code>DataCodec.elm</code> 188&ndash;207). Lowercase <code>"1e3"</code> parses there
+(elm-bignum <code>Decimal.elm</code> 247), so the reason to reject exponents is that no
+writer emits them, not that Elm misreads them. A JSON <code>pattern</code> is not
+anchored, so the pattern has <code>^</code> and <code>$</code>. The pattern uses only
+syntax that ECMA-262 and the Rust <code>regex</code> crate read the same way.</p>
+<p>A valid string does not promise an exact Elm round trip: elm-bignum keeps at most 32
+fraction digits and truncates the rest (<code>Decimal.elm</code> 289). Use
+<code>decimal_precision</code> and <code>decimal_scale</code> (<a href="#dec-3">DEC-3</a>)
+to bound the digits when a consumer has such a limit.</p>
 <p><em>Alternatives.</em> The full IR v4 lexeme grammar: wider, but a document valid under
 it can reach the Elm decoder and become 0. No pattern (morphir-elm's JSON Schema backend):
 does not check the value at all. A JSON number by default: loses exactness in every
@@ -153,8 +166,9 @@ Schema needs none. When both are set, the pattern bounds the digits:</p>
 </table>
 <p>Validation gives <code>JSC002</code> when only one is set (a scale-only or
 precision-only rule has no clear Avro counterpart and would need lookahead in the
-pattern), when the precision is outside 1 to 1000 (the upper limit keeps the repetition
-count inside what common regex engines compile), when the scale is above the precision,
+pattern), when the precision is outside 1 to 1000 (RE2 and the engines modelled on it,
+such as Go's <code>regexp</code>, refuse a counted repetition above 1000, so a larger
+bound would give a schema that some validators cannot compile), when the scale is above the precision,
 and when either is set with <code>decimal_encoding: "number"</code> (no exact JSON Schema
 bound exists for binary floating point; <code>multipleOf</code> on a fraction is not
 exact in most validators).</p>

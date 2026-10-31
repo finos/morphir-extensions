@@ -10,36 +10,37 @@ Bead `morphir-ltut` (label `repo:morphir-extensions`): group 1 is
 
 ## 2. Options
 
-- [ ] 2.1 Add `decimal_encoding`, `decimal_precision` and `decimal_scale` to
+- [x] 2.1 Add `decimal_encoding`, `decimal_precision` and `decimal_scale` to
   `SchemaOptions` with their `JSC002` rules (design.html DEC-2, DEC-3); verify with
   unit tests in `tests/options.rs` for the defaults, the spellings and every
   rejected combination.
 
 ## 3. Projection and rendering
 
-- [ ] 3.1 Add `Schema::Decimal` and project `morphir/SDK:decimal#decimal` to it
+- [x] 3.1 Add `Schema::Decimal` and project `morphir/SDK:decimal#decimal` to it
   (SCH-1); verify with projection unit tests for the default, the number encoding
   and the bounds.
-- [ ] 3.2 Render the string and number forms and the bounded patterns (DEC-1,
+- [x] 3.2 Render the string and number forms and the bounded patterns (DEC-1,
   DEC-3); verify with unit tests that validate the instances of the spec scenarios
   against the rendered schema.
-- [ ] 3.3 Pin the OpenAPI 3.0 output for `Decimal` and `Maybe Decimal` (DEC-4);
+- [x] 3.3 Pin the OpenAPI 3.0 output for `Decimal` and `Maybe Decimal` (DEC-4);
   verify with a downgrade test and 3.0 metaschema validation.
 
 ## 4. Fixture, goldens, guest check and documentation
 
-- [ ] 4.1 Copy `typed-pricing.json` into the crate fixtures and the guest-check
+- [x] 4.1 Copy `typed-pricing.json` into the crate fixtures and the guest-check
   fixtures; add golden documents for `json-schema`, `openapi` 3.1 and 3.0 with
   metaschema validation (TST-1); verify with `cargo test -p morphir-openapi-extension`
   and the fixture test of `extension-guest-check`.
-- [ ] 4.2 Add the fixture and Decimal option sets to the guest-check parity test and
+- [x] 4.2 Add the fixture and Decimal option sets to the guest-check parity test and
   the fixture to `qualify:moonbit`; verify with `MISE_ENV=rust mise run rust:guest-check`.
-- [ ] 4.3 Set the crate version to 0.4.0, update `claims/expected.json`, the
+- [x] 4.3 Set the crate version to 0.4.0, update `claims/expected.json`, the
   `CHANGELOG.md` entry and the option documentation (DEC-5); verify with
   `MISE_ENV=rust mise run rust:fmt`, `rust:lint`, `rust:test`, `rust:wasm` and
   `rust:guest-check`.
-- [ ] 4.4 Open a follow-up issue that lists the other SDK types without a projection,
-  with the evidence of DEC-6; verify the issue URL is in the pull request.
+- [x] 4.4 Open a follow-up issue that lists the other SDK types without a projection,
+  with the evidence of DEC-6; verify the issue URL is in the pull request
+  (finos/morphir-extensions#21).
 
 ## 5. Release preparation
 
