@@ -3,7 +3,7 @@
 
 // OpenSpec change move-avro-and-openapi-extensions, design.html QUA-1. Runs
 // `morphir extension describe` and `morphir extension generate` (plain IR JSON,
-// MEP 0.1) for every claimed target and both IR fixtures, with a contract 0.2.0
+// MEP 0.1) for every claimed target and every IR fixture, with a contract 0.2.0
 // pin that names the module and its release.json. Writes a JSON record and exits
 // non-zero when any command fails.
 
@@ -69,6 +69,7 @@ if (hosts.length === 0) throw new Error("give --native, --node or both");
 const models = [
   { name: "canonical-customer-v4", path: join(fixtures, "canonical-customer-v4.json") },
   { name: "classic-schema-library-v3", path: join(fixtures, "classic-schema-library-v3.json") },
+  { name: "typed-pricing-v4", path: join(fixtures, "typed-pricing-v4.json") },
 ];
 
 interface Run {
