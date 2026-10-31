@@ -58,9 +58,10 @@ requests in FUP-1.
   https://github.com/finos/morphir-extensions/releases/tag/extension/openapi/v0.3.0.
 - Requalify both 0.3.0 bundles through the MoonBit npm entry (`qualify:moonbit
   --node`, macOS and Linux) when finos/morphir-moonbit#289 (bead
-  `morphir-ukvn.5.64.36.11`) is fixed, and record the result on #11.
+  `morphir-ukvn.5.64.36.11`) is fixed, and record the result on #11. This is
+  now a task on the fix lane of finos/morphir-moonbit#289.
 
 - Archive this change after the releases and the follow-up pull requests merge,
   following AGENTS.md.
-- Ask Damian to review the decisions marked "decided by agents, pending Damian
-  review" in design.html.
+- Done: Damian ratified the decisions RUN-1, ID-1 and QUA-1 on 2026-10-31.
+- MEP 0.2 `generateModel` on the Extism ABI: finos/morphir-extensions#18.

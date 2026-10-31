@@ -176,8 +176,8 @@ repository.</p>
 <h2 id="decisions">Decisions</h2>
 
 <h3 id="run-1">RUN-1. Keep the Extism guest and MEP 0.1</h3>
-<p class="agents"><strong>Decided by agents, pending Damian review</strong> (Damian's main
-session and an independent Codex reviewer, 2026-10-31).</p>
+<p class="agents"><strong>Ratified by Damian, 2026-10-31</strong> (first decided by Damian's
+main session and an independent Codex reviewer, 2026-10-31).</p>
 <p>The first releases from this repository ship the same kind of module as before: an
 Extism guest (<code>extism-kernel-v1</code>) that speaks MEP <code>0.1</code>.</p>
 <table>
@@ -191,7 +191,8 @@ Extism guest (<code>extism-kernel-v1</code>) that speaks MEP <code>0.1</code>.</
 <p>Gleam moved to core-Wasm because the MoonBit host then had only the
 <code>core-wasm-process</code> route. The worker host now runs both ABIs, so that reason
 does not apply. ABI and MEP version are independent: MEP <code>0.2</code>
-<code>generateModel</code> can come later on the Extism ABI (as in finos/morphir-python),
+<code>generateModel</code> can come later on the Extism ABI (as in finos/morphir-python;
+tracked in <a href="https://github.com/finos/morphir-extensions/issues/18">finos/morphir-extensions#18</a>),
 and a core-Wasm artifact only when it gives a demonstrated benefit.</p>
 <p>Conditions of the decision: qualify the actual release bundles on the MoonBit worker
 host, native and Node, in addition to the Rust host compatibility check, before each tag
@@ -325,8 +326,7 @@ finos/morphir-rust; an index records both by owner and repository. The OpenAPI
 extension is not split: Damian decided on 2026-10-31 to move it as one extension.</p>
 <p>The first release here is <code>0.3.0</code>: the claims change (the homepage moves to
 this repository) and the publisher changes, and a minor bump makes that visible. The file
-names follow the extension id, as in finos/morphir-gleam (<em>decided by agents, pending
-Damian review</em>). The <code>0.2.0</code> releases stay in finos/morphir-rust.</p>
+names follow the extension id, as in finos/morphir-gleam (<em>ratified by Damian, 2026-10-31</em>). The <code>0.2.0</code> releases stay in finos/morphir-rust.</p>
 
 <h3 id="tst-1">TST-1. Tests and the guest check</h3>
 <table>
@@ -417,8 +417,8 @@ exit. It does the same with the published finos/morphir-python 0.4.2 bundle, so 
 in the host, not in these bundles: finos/morphir-moonbit#289, bead
 <code>morphir-ukvn.5.64.36.11</code>. The Rust CLI host compatibility test of finos/morphir
 passes for both bundles with pins that change only repository, tag, artifact and digest.</p>
-<p class="agents"><strong>Decided by agents, pending Damian review</strong> (Damian's main session
-and an independent Codex reviewer, 2026-10-31): run the same check on Linux with the manual
+<p class="agents"><strong>Ratified by Damian, 2026-10-31</strong> (first decided by Damian's main
+session and an independent Codex reviewer, 2026-10-31): run the same check on Linux with the manual
 workflow <code>qualify-moonbit.yml</code> (native and npm entry, Node 24.22.1, Python 0.4.2 as a
 control). If Linux passes, tag with native, Linux Node and Rust host evidence and record the
 macOS Node hang as a known host limitation. If Linux fails the same way for the control too,
