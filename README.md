@@ -20,7 +20,7 @@ extension that conforms to the Morphir Extension Protocol (MEP).
 
 The two extensions moved here from
 [finos/morphir-rust](https://github.com/finos/morphir-rust) (OpenSpec change
-[`move-avro-and-openapi-extensions`](openspec/changes/move-avro-and-openapi-extensions/proposal.md)).
+[`move-avro-and-openapi-extensions`](openspec/changes/archive/2026-10-31-move-avro-and-openapi-extensions/proposal.md)).
 Their first release from this repository is `0.3.0`. Releases up to `0.2.0` stay in
 finos/morphir-rust. Each module is an Extism guest (`extism-kernel-v1`) for MEP
 `0.1`; the MoonBit CLI runs it from its native and its Node CLI.

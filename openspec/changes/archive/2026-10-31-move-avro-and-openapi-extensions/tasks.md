@@ -47,9 +47,9 @@ requests in FUP-1.
 
 ## 5. Follow-up in other repositories (FUP-1)
 
-- [ ] 5.1 finos/morphir: move the `avro` and `openapi` bundle pins to finos/morphir-extensions 0.3.0, change the two generate tests to use the pinned bundles, and update `docs/generate/avro.md`, `json-schema.md`, `openapi.md` and the release-manager skill. Verify: its CI, including host compatibility, passes.
-- [ ] 5.2 finos/morphir-rust: remove the two crates and their release tasks, registry entries, CI references and host-native fixtures, and leave pointers. Verify: its CI passes and the 0.2.0 releases still exist.
-- [ ] 5.3 Close bead `morphir-ukvn.1.7` with a pointer to this change and the releases. Verify: `bd show morphir-ukvn.1.7` shows it closed.
+- [x] 5.1 finos/morphir: move the `avro` and `openapi` bundle pins to finos/morphir-extensions 0.3.0, change the two generate tests to use the pinned bundles, and update `docs/generate/avro.md`, `json-schema.md`, `openapi.md` and the release-manager skill. Verify: its CI, including host compatibility, passes. Done: finos/morphir#1120 (also the four backend scenarios, which install an exact version).
+- [x] 5.2 finos/morphir-rust: remove the two crates and their release tasks, registry entries, CI references and host-native fixtures, and leave pointers. Verify: its CI passes and the 0.2.0 releases still exist. Done: finos/morphir-rust#320.
+- [x] 5.3 Close bead `morphir-ukvn.1.7` with a pointer to this change and the releases. Verify: `bd show morphir-ukvn.1.7` shows it closed. Done; the open npm requalification is tracked on `morphir-ukvn.5.64.36.11`.
 
 ## Workflow follow-up
 
