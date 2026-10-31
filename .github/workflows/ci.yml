@@ -16,9 +16,43 @@ permissions:
   contents: read
 
 env:
+  CARGO_TERM_COLOR: always
   MISE_TASK_RUN_AUTO_INSTALL: "false"
 
 jobs:
+  # Selects the path-scoped jobs. A push to main and a manual run select all.
+  changes:
+    name: Select jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.select.outputs.rust }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Select from the changed paths
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$(git merge-base "$BASE" "$HEAD")" "$HEAD")
+          echo "$changed"
+          rust=false
+          if echo "$changed" | grep -q -E '^(rust/|\.config/mise/config\.rust\.toml$|\.config/mise/tasks/rust/|\.github/workflows/|\.github/scripts/)'; then
+            rust=true
+          fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+
   openspec:
     name: OpenSpec
     runs-on: ubuntu-latest
@@ -63,12 +97,82 @@ jobs:
       - name: Lint GitHub Actions workflows
         run: mise exec -- actionlint
 
+  rust:
+    name: Rust checks
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MISE_ENV: rust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: rust wasm-tools
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: native
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Format check
+        run: mise run rust:fmt
+
+      - name: Clippy (host and wasm32)
+        run: mise run rust:lint
+
+      - name: Unit, golden and integration tests
+        run: mise run rust:test
+
+  wasm:
+    name: Wasm guests
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MISE_ENV: rust
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: rust wasm-tools
+          cache: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: wasm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build, validate and check the imports of each guest
+        run: mise run rust:wasm
+
+      - name: Upload the guest modules
+        uses: actions/upload-artifact@v6
+        with:
+          name: extension-guests
+          path: rust/target/wasm32-unknown-unknown/release/*.wasm
+          if-no-files-found: error
+          retention-days: 7
+
   # The one check to require. It always runs and fails when a needed job failed
   # or was cancelled; a job that change selection skipped does not fail it.
   ci-ok:
     name: CI OK
     if: ${{ always() }}
-    needs: [openspec, actionlint]
+    needs: [changes, openspec, actionlint, rust, wasm]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

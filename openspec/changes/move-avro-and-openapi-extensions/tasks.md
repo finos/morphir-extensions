@@ -8,23 +8,23 @@ requests in FUP-1.
 
 ## 1. Repository setup (PR 1)
 
-- [ ] 1.1 Add the shared OpenSpec bundle (`openspec/config.yaml`, `openspec/schemas/html-design`, `openspec/extensions.lock.json`, `scripts/openspec-ext.mbtx`, its feature file) and the `openspec:*` tasks. Verify: `mise run openspec:check`, `mise run openspec:validate` and `mise run openspec:test` pass with MoonBit 0.10.18.
-- [ ] 1.2 Add `.config/mise/config.toml` with the pins from design.html SET-1. Verify: `mise install` in a clean checkout installs node, OpenSpec, bun, actionlint and MoonBit `0.10.18+6c83a7f62`, and no Rust.
-- [ ] 1.3 Add `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `.beads/config.yaml` and `.beads/.gitignore`, the pr-monitor skill (`skills-lock.json`) and the build-master skill and agent with a repository reference for this repository. Verify: `.beads/config.yaml` names the shared tracker as in finos/morphir-python, `bd where` resolves it, and every skill link resolves.
-- [ ] 1.4 Replace the blueprint `README.md` with a description of the repository and its extensions. Verify: the README has no blueprint tokens.
-- [ ] 1.5 Add `.github/workflows/ci.yml` with the `changes`, `openspec`, `actionlint` and `ci-ok` jobs (design.html CI-1). Verify: `actionlint` passes and the PR shows the jobs green.
-- [ ] 1.6 Add this change and validate it. Verify: `openspec validate move-avro-and-openapi-extensions --strict` passes.
+- [x] 1.1 Add the shared OpenSpec bundle (`openspec/config.yaml`, `openspec/schemas/html-design`, `openspec/extensions.lock.json`, `scripts/openspec-ext.mbtx`, its feature file) and the `openspec:*` tasks. Verify: `mise run openspec:check`, `mise run openspec:validate` and `mise run openspec:test` pass with MoonBit 0.10.18.
+- [x] 1.2 Add `.config/mise/config.toml` with the pins from design.html SET-1. Verify: `mise install` in a clean checkout installs node, OpenSpec, bun, actionlint and MoonBit `0.10.18+6c83a7f62`, and no Rust.
+- [x] 1.3 Add `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `.beads/config.yaml` and `.beads/.gitignore`, the pr-monitor skill (`skills-lock.json`) and the build-master skill and agent with a repository reference for this repository. Verify: `.beads/config.yaml` names the shared tracker as in finos/morphir-python, `bd where` resolves it, and every skill link resolves.
+- [x] 1.4 Replace the blueprint `README.md` with a description of the repository and its extensions. Verify: the README has no blueprint tokens.
+- [x] 1.5 Add `.github/workflows/ci.yml` with the `changes`, `openspec`, `actionlint` and `ci-ok` jobs (design.html CI-1). Verify: `actionlint` passes and the PR shows the jobs green.
+- [x] 1.6 Add this change and validate it. Verify: `openspec validate move-avro-and-openapi-extensions --strict` passes.
 
 ## 2. Import the crates with their history (PR 2)
 
-- [ ] 2.1 Record the finos/morphir-rust import revision in the PR description. Verify: no commit on finos/morphir-rust `main` touches either crate after it when PR 2 is ready.
-- [ ] 2.2 Run `git filter-repo` for each crate with the path rename to `rust/crates/<crate>/` and the message callback from design.html HIS-1. Verify: no AI co-author trailers, every commit has an `Imported-from:` trailer, and the counts are 14 (Avro) and 32 (OpenAPI).
-- [ ] 2.3 Merge each filtered history with `--allow-unrelated-histories --no-ff`. Verify: `git log --follow rust/crates/morphir-avro-extension/src/lib.rs` shows the imported commits.
-- [ ] 2.4 Add `rust/Cargo.toml` (workspace package values from finos/morphir-rust, repository URL of this repository), `rust/rust-toolchain.toml`, `rust/Cargo.lock` and `/rust/target/` in `.gitignore`. Change the path dependencies to the crates.io versions from design.html DEP-1. Verify: `cargo build` and `cargo build --target wasm32-unknown-unknown` pass in `rust/`.
-- [ ] 2.5 Copy `canonical-customer-v4.json` into each crate's `tests/fixtures/`, change the two `include_str!` paths, and change the README links to absolute finos/morphir-rust links. Verify: `cargo test --locked` passes all imported tests with no file outside `rust/`.
-- [ ] 2.6 Add `.config/mise/config.rust.toml` and the tasks `rust:fmt`, `rust:lint`, `rust:test` and `rust:wasm` (build, `wasm-tools validate`, import check). Verify: `MISE_ENV=rust mise run rust:test` and `rust:wasm` pass, and plain `mise install` still installs no Rust.
-- [ ] 2.7 Add the `rust` and `wasm` jobs to `ci.yml` behind the change selection, and Renovate rules for `rust/`. Verify: the PR shows the jobs green and `ci-ok` passes; `npx --yes --package renovate -- renovate-config-validator` passes.
-- [ ] 2.8 Add a "Rust extensions" section to `AGENTS.md` and `README.md` and an `Added` entry in `CHANGELOG.md`. Verify: the documented commands run as written.
+- [x] 2.1 Record the finos/morphir-rust import revision in the PR description. Verify: no commit on finos/morphir-rust `main` touches either crate after it when PR 2 is ready.
+- [x] 2.2 Run `git filter-repo` for each crate with the path rename to `rust/crates/<crate>/` and the message callback from design.html HIS-1. Verify: no AI co-author trailers, every commit has an `Imported-from:` trailer, and the counts are 14 (Avro) and 32 (OpenAPI).
+- [x] 2.3 Merge each filtered history with `--allow-unrelated-histories --no-ff`. Verify: `git log --follow rust/crates/morphir-avro-extension/src/lib.rs` shows the imported commits.
+- [x] 2.4 Add `rust/Cargo.toml` (workspace package values from finos/morphir-rust, repository URL of this repository), `rust/rust-toolchain.toml`, `rust/Cargo.lock` and `/rust/target/` in `.gitignore`. Change the path dependencies to the crates.io versions from design.html DEP-1. Verify: `cargo build` and `cargo build --target wasm32-unknown-unknown` pass in `rust/`.
+- [x] 2.5 Copy `canonical-customer-v4.json` into each crate's `tests/fixtures/`, change the two `include_str!` paths, and change the README links to absolute finos/morphir-rust links. Verify: `cargo test --locked` passes all imported tests with no file outside `rust/`.
+- [x] 2.6 Add `.config/mise/config.rust.toml` and the tasks `rust:fmt`, `rust:lint`, `rust:test` and `rust:wasm` (build, `wasm-tools validate`, import check). Verify: `MISE_ENV=rust mise run rust:test` and `rust:wasm` pass, and plain `mise install` still installs no Rust.
+- [ ] 2.7 Add the `rust` and `wasm` jobs to `ci.yml` behind the change selection. Renovate's `config:recommended` already updates `rust/` (Cargo), the mise pins and the actions, so no new rule is needed. Verify: the PR shows the jobs green and `ci-ok` passes; `npx --yes --package renovate -- renovate-config-validator` passes.
+- [x] 2.8 Add a "Rust extensions" section to `AGENTS.md` and `README.md` and an `Added` entry in `CHANGELOG.md`. Verify: the documented commands run as written.
 - [ ] 2.9 Merge PR 2 with a merge commit. Verify: `git log main -- rust/crates/morphir-openapi-extension` shows the imported commits.
 
 ## 3. Guest check, release workflow and 0.3.0 (PR 3)

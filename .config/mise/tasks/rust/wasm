@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Build each extension guest for wasm32, validate it and check its imports"
+. "$(dirname "$0")/_env.sh"
+cargo build --locked --release --workspace --target wasm32-unknown-unknown
+for module in target/wasm32-unknown-unknown/release/*.wasm; do
+    wasm-tools validate "$module"
+    # An Extism guest (extism-kernel-v1) imports only the Extism kernel and host
+    # functions. Any other import (WASI, Morphir host functions) fails here.
+    imports=$(wasm-tools print "$module" | sed -n 's/^ *(import "\([^"]*\)" .*/\1/p' | sort -u)
+    if [ "$imports" != "extism:host/env" ]; then
+        echo "$module: unexpected import modules:" >&2
+        echo "$imports" >&2
+        exit 1
+    fi
+    echo "$module: valid; imports only extism:host/env"
+done
