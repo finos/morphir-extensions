@@ -35,13 +35,13 @@ requests in FUP-1.
 - [x] 3.4 Port the Avro IDL check as the task `rust:avro-idl` (Apache Avro Tools 1.12.2 with its SHA-512, Java from `config.rust.toml`) and add the `avro-idl` CI job. Verify: the job passes on the IDL goldens.
 - [x] 3.5 Add the bun bundle script `.github/scripts/extension-bundle/` and the task `rust:bundle`; it writes the four files of the extension-bundle-release spec and runs `sha256sum --check`. Verify: `bun test` checks the file set and the descriptor fields, and the `wasm` job uploads a dry-run bundle for each extension.
 - [x] 3.6 Add `.github/workflows/extension-release.yml` with the check, build, test and publish jobs and the permissions from design.html REL-1, with the stage step and the publish job kept separate for the later `morphir extension publish` switch. Verify: `actionlint` passes.
-- [ ] 3.7 Add the task `qualify:moonbit` (design.html QUA-1). Verify: it runs against a local build of the dry-run bundles with a MoonBit CLI from finos/morphir-moonbit `main` and writes its JSON record.
+- [x] 3.7 Add the task `qualify:moonbit` and the manual workflow `qualify-moonbit.yml` (design.html QUA-1). Verify: it runs against local bundles with a MoonBit CLI from finos/morphir-moonbit `main` and writes its JSON record; a host that does not exit fails as `hung`.
 - [x] 3.8 Document the release steps, the bundle files and the `gh attestation verify` command in `README.md`, and add `Changed` entries in `CHANGELOG.md`. Verify: the verify command names the workflow path.
 
 ## 4. Releases
 
 - [ ] 4.1 After PR 3 merges, run the release workflow from `main` with `publish: false` for both tags. Verify: all jobs pass and each bundle artifact matches the extension-bundle-release spec; a run with a wrong version fails in check.
-- [ ] 4.2 Run `qualify:moonbit` on both dry-run bundles (native and Node CLI) and the finos/morphir host compatibility test with the dry-run modules. Verify: the records show exit 0 for describe and generate; post them in the PR or issue that prepares the tags.
+- [ ] 4.2 Run `qualify:moonbit` on both dry-run bundles (native and Node CLI, macOS locally and Linux with `qualify-moonbit.yml`, Python 0.4.2 as a control) and the finos/morphir host compatibility test with the dry-run modules. Verify: the records show exit 0 for describe and generate, or the Node result follows the decision in design.html QUA-1; post them in the issue that prepares the tags.
 - [ ] 4.3 Push `extension/avro/v0.3.0` and `extension/openapi/v0.3.0` on `main`. Verify: each release has the four files, `sha256sum --check` passes, and `gh attestation verify` passes for the module and `release.json`. Send the release URLs to Damian's main session.
 - [ ] 4.4 Run `mise run openspec:validate` and `openspec validate move-avro-and-openapi-extensions --strict`. Verify: both pass.
 

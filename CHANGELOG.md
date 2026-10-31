@@ -24,8 +24,9 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 - `.github/workflows/extension-release.yml`: one release workflow for every
   extension, with `release.json`, `.sha256` files and verified build provenance
   attestations; `rust/extensions.toml` declares the extensions.
-- `rust:avro-idl` (Apache Avro Tools 1.12.2) and `qualify:moonbit` (MoonBit worker
-  host, native and Node CLI).
+- `rust:avro-idl` (Apache Avro Tools 1.12.2), `qualify:moonbit` (MoonBit worker
+  host, native and Node CLI) and the manual workflow `qualify-moonbit.yml` (the
+  same check on Linux, with the Python 0.4.2 bundle as a control).
 
 ### Changed
 

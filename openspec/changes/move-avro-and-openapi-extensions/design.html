@@ -407,7 +407,24 @@ the tag holds this evidence and the result of the Rust CLI host compatibility ch
 the dry-run bundle.</p>
 <p>This is a manual gate for now: there is no MoonBit CLI release for Linux to pin in CI
 (only <code>v0.1.0-demo.1</code> for macOS arm64). When one exists, the task can run in the
-release workflow.</p>
+release workflow. Each command has a deadline and a watchdog, so a host that does not exit
+fails the run as <code>hung</code> instead of blocking it.</p>
+<p><strong>Finding (2026-10-31).</strong> On finos/morphir-moonbit <code>af16f0b</code>, macOS
+arm64, the native CLI passes describe and generate (IR v3 and v4, every target) for both
+bundles. The npm CLI (<code>node apps/morphir/bin/morphir.js</code>, Node 24.14.1 and 24.22.1)
+reports <code>extension.cancelled</code> after about 0.5 s for every Extism pin and does not
+exit. It does the same with the published finos/morphir-python 0.4.2 bundle, so the defect is
+in the host, not in these bundles: finos/morphir-moonbit#289, bead
+<code>morphir-ukvn.5.64.36.11</code>. The Rust CLI host compatibility test of finos/morphir
+passes for both bundles with pins that change only repository, tag, artifact and digest.</p>
+<p class="agents"><strong>Decided by agents, pending Damian review</strong> (Damian's main session
+and an independent Codex reviewer, 2026-10-31): run the same check on Linux with the manual
+workflow <code>qualify-moonbit.yml</code> (native and npm entry, Node 24.22.1, Python 0.4.2 as a
+control). If Linux passes, tag with native, Linux Node and Rust host evidence and record the
+macOS Node hang as a known host limitation. If Linux fails the same way for the control too,
+tag anyway: the defect carries no signal about these bundles; record it with the reproduction
+and requalify on Node when the host is fixed. If Linux fails only for Avro or OpenAPI while
+the control passes, do not tag; investigate the bundles.</p>
 
 <h3 id="fup-1">FUP-1. Follow-up in other repositories</h3>
 <p>Each item is a pull request in its repository, opened after the 0.3.0 releases exist.

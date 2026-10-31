@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-//MISE description="Qualify a release bundle on the MoonBit worker host (native and Node CLI): --bundle <dir> --native <morphir.exe> --node <morphir.js> --cli-commit <sha> [--out <record.json>]"
+//MISE description="Qualify a release bundle on the MoonBit worker host (native and Node CLI): --bundle <dir> --native <morphir.exe> --node <morphir.js> --cli-commit <sha> [--out <record.json>] [--describe-only]"
 
 // OpenSpec change move-avro-and-openapi-extensions, design.html QUA-1. Runs
 // `morphir extension describe` and `morphir extension generate` (plain IR JSON,
@@ -38,7 +38,7 @@ const wasm = join(bundle, wasmName);
 const descriptorPath = join(bundle, descriptorName);
 const descriptor = JSON.parse(readFileSync(descriptorPath, "utf8"));
 const claims = descriptor.artifacts[0].claims;
-const targets: string[] = claims.capabilities.backend.targets;
+const targets: string[] = claims.capabilities.backend?.targets ?? [];
 const work = resolve(flag("work") ?? join(root, ".dev/qualify", `${descriptor.extensionId}-${descriptor.version}`));
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
@@ -85,12 +85,26 @@ interface Run {
   files?: number;
 }
 
+// The CLI's own deadline is COMMAND_MS. A host that does not exit within
+// KILL_MS is killed and the run fails as "hung".
+const COMMAND_MS = 60_000;
+const KILL_MS = 90_000;
+
 function run(host: (typeof hosts)[number], args: string[], extra: Partial<Run>): Run {
-  const result = Bun.spawnSync([...host.command, ...args, "--extension-pin", pin, "--json"], {
-    cwd: work,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const result = Bun.spawnSync(
+    [...host.command, ...args, "--extension-pin", pin, "--timeout", String(COMMAND_MS), "--json"],
+    { cwd: work, stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: KILL_MS, killSignal: "SIGKILL" },
+  );
+  if (result.exitedDueToTimeout) {
+    return {
+      host: host.kind,
+      command: args.slice(0, 2).join(" "),
+      ...extra,
+      exitCode: -1,
+      state: "hung",
+      error: { stdout: result.stdout.toString().slice(-2000), stderr: result.stderr.toString().slice(-2000) },
+    };
+  }
   let report: Record<string, any> = {};
   try {
     report = JSON.parse(result.stdout.toString());
@@ -111,10 +125,13 @@ function run(host: (typeof hosts)[number], args: string[], extra: Partial<Run>):
   };
 }
 
+// --describe-only checks only the host and the describe answer, for a control
+// bundle whose backend need not accept these fixtures.
+const describeOnly = process.argv.includes("--describe-only");
 const runs: Run[] = [];
 for (const host of hosts) {
   runs.push(run(host, ["extension", "describe"], {}));
-  for (const target of targets) {
+  for (const target of describeOnly ? [] : targets) {
     for (const model of models) {
       const output = join(work, `${host.kind}-${target}-${model.name}`);
       runs.push(
