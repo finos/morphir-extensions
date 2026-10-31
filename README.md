@@ -35,7 +35,15 @@ mise run openspec:validate    # schema and every change, strict
 mise run openspec:test        # tests of the shared checker
 ```
 
-See [AGENTS.md](AGENTS.md) for the OpenSpec and beads workflow and the
+The Rust extensions in `rust/` use their own mise environment:
+
+```sh
+MISE_ENV=rust mise install
+MISE_ENV=rust mise run rust:test    # unit, golden and integration tests
+MISE_ENV=rust mise run rust:wasm    # build and check the Wasm guests
+```
+
+See [AGENTS.md](AGENTS.md) for all tasks, the OpenSpec and beads workflow and the
 contribution rules.
 
 ## Contributing

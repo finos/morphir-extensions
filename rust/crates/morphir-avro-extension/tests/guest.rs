@@ -283,10 +283,7 @@ fn a_single_target_backend_ignores_the_requested_target() {
 
 #[test]
 fn canonical_v4_access_wrappers_generate_customer_fields() {
-    let ir = serde_json::from_str(include_str!(
-        "../../morphir-projection/tests/fixtures/canonical-customer-v4.json"
-    ))
-    .unwrap();
+    let ir = serde_json::from_str(include_str!("fixtures/canonical-customer-v4.json")).unwrap();
     let result = generate(ir, options([("representation", json!("json"))]));
     assert!(result.success, "{:?}", result.diagnostics);
     assert_eq!(result.artifacts.len(), 1);

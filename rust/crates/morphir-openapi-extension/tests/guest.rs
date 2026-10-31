@@ -97,10 +97,8 @@ fn reports_an_invalid_option_before_an_ir_error() {
 
 #[test]
 fn canonical_v4_access_wrappers_generate_both_customer_schemas() {
-    let ir: Value = serde_json::from_str(include_str!(
-        "../../morphir-projection/tests/fixtures/canonical-customer-v4.json"
-    ))
-    .unwrap();
+    let ir: Value =
+        serde_json::from_str(include_str!("fixtures/canonical-customer-v4.json")).unwrap();
     for target in ["json-schema", "openapi"] {
         let result = generate(target, ir.clone(), HashMap::new());
         assert!(result.success, "{target}: {:?}", result.diagnostics);

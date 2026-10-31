@@ -28,15 +28,36 @@ morphir-extensions/
 ├── .config/mise/        # Tool pins and file-based tasks
 │   ├── config.toml      # Repository tools (OpenSpec, MoonBit checker, bun, actionlint)
 │   └── tasks/           # mise tasks
+├── rust/                # Rust extensions (one Cargo workspace)
 ├── .github/             # Workflows, skills and agent profiles
 ├── .beads/              # Configuration for the shared beads tracker
 ├── docs/, website/      # FINOS project website
 └── AGENTS.md            # This file
 ```
 
-Extensions written in Rust go under `rust/` as one Cargo workspace (see the OpenSpec
-change `move-avro-and-openapi-extensions`). Their tools are in a separate mise
-environment, so jobs that do not build Rust do not install it.
+### Rust extensions
+
+`rust/` is one Cargo workspace. Each crate under `rust/crates/` is one extension:
+
+| Crate | Extension id | Targets |
+| --- | --- | --- |
+| `morphir-avro-extension` | `morphir-avro` | `avro` |
+| `morphir-openapi-extension` | `morphir-openapi` | `openapi`, `json-schema` |
+
+The crates and their history come from finos/morphir-rust (OpenSpec change
+`move-avro-and-openapi-extensions`). Each builds to an Extism guest
+(`wasm32-unknown-unknown`) that speaks MEP 0.1. Rust tools are in
+`.config/mise/config.rust.toml`; select them with `MISE_ENV=rust`, so jobs that do
+not build Rust do not install it.
+
+```sh
+MISE_ENV=rust mise run rust:fmt     # --fix to format
+MISE_ENV=rust mise run rust:lint    # clippy, host and wasm32
+MISE_ENV=rust mise run rust:test
+MISE_ENV=rust mise run rust:wasm    # build, validate, import check
+```
+
+A guest may import only `extism:host/env`. `rust:wasm` fails on any other import.
 
 ## Development
 

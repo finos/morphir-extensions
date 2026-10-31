@@ -13,22 +13,19 @@ the files.
 
 ## Build and test
 
-From the `morphir-rust` repository root:
+From the root of finos/morphir-extensions:
+
+```console
+MISE_ENV=rust mise run rust:test
+MISE_ENV=rust mise run rust:wasm
+```
+
+Or with Cargo, from `rust/`:
 
 ```console
 cargo test -p morphir-avro-extension
 cargo build --release -p morphir-avro-extension --target wasm32-unknown-unknown
-mise run test:avro-idl
 ```
-
-Create the complete local release bundle with:
-
-```console
-mise run extension:artifact:avro
-```
-
-The bundle appears under `.morphir/build/extensions/avro/`. This command does
-not create a tag or publish a release.
 
 ## Backend contract
 
@@ -51,6 +48,10 @@ constant value.
 
 ## Release tags
 
+This section and the next describe the releases from finos/morphir-rust, up to
+`extension/avro/v0.2.0`.
+
+
 An independent extension tag has the form
 `extension/avro/v<crate-version>`. A workspace tag has the form
 `v<workspace-version>` and includes Avro while its
@@ -59,7 +60,7 @@ creation and release publication are separate jobs. The publication job uses
 the exact bundle created by the build job and never rebuilds it.
 
 See
-[`docs/contributors/design/extensions/README.md`](../../docs/contributors/design/extensions/README.md)
+[`docs/contributors/design/extensions/README.md`](https://github.com/finos/morphir-rust/blob/945486e1320385e22986ef937db82e344b179d05/docs/contributors/design/extensions/README.md)
 for the contributor release workflow.
 
 ### Bundle descriptor compatibility
@@ -72,5 +73,5 @@ later; older CLIs cannot read this descriptor. The versioned WASM and
 `<artifact-base>-<version>.release.json`; rename it to `release.json` before
 publishing. WASM installs show `Claims: unchecked`.
 
-See the [packaging contract](../../docs/extensions/capability-claims.md#packaging-wasm-extensions)
+See the [packaging contract](https://github.com/finos/morphir-rust/blob/945486e1320385e22986ef937db82e344b179d05/docs/extensions/capability-claims.md#packaging-wasm-extensions)
 for the descriptor shape and provenance rules.
