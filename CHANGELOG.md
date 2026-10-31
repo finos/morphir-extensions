@@ -7,16 +7,30 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 ## [Unreleased]
 
+### Changed
+
+- Archive the OpenSpec change `add-openapi-decimal-projection`; its `Decimal`
+  requirements are now in `openspec/specs/openapi-extension`.
+- Archive the OpenSpec change `move-avro-and-openapi-extensions`; its specs
+  `extension-bundle-release`, `avro-extension` and `openapi-extension` are now in
+  `openspec/specs/`.
+
+## morphir-openapi 0.4.0 - 2026-10-31
+
+Release `extension/openapi/v0.4.0`, an attested bundle built from `166ffce`
+(finos/morphir-extensions#22). Qualified on the MoonBit worker host, native and npm
+entry, before the tag.
+
 ### Added
 
-- `morphir-openapi` 0.4.0: a schema for the Morphir SDK `Decimal`
+- A schema for the Morphir SDK `Decimal`
   (`morphir/SDK:decimal#decimal`) in both targets, `openapi` (3.1 and 3.0) and
   `json-schema` (finos/morphir-extensions#20). 0.3.0 refused such IR with `JSC003`.
   By default a `Decimal` is a string that keeps the exact value:
   `{"type": "string", "format": "decimal", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}`.
   The pattern accepts plain decimal notation, as Morphir data writers emit it, and
   rejects exponents, a `+` sign, `.5`, `1.` and leading zeros.
-- `morphir-openapi` options `decimal_encoding` (`"string"`, the default, or
+- Options `decimal_encoding` (`"string"`, the default, or
   `"number"` for `{"type": "number", "format": "decimal"}`), and `decimal_precision`
   with `decimal_scale` (set both; the Avro extension's meaning, no default; they
   bound the integer and fraction digits of the string pattern). Invalid
@@ -26,9 +40,6 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 - The guest check and `qualify:moonbit` also run `typed-pricing-v4.json`, the IR v4
   model from finos/morphir-moonbit that uses `Decimal`.
-- Archive the OpenSpec change `move-avro-and-openapi-extensions`; its specs
-  `extension-bundle-release`, `avro-extension` and `openapi-extension` are now in
-  `openspec/specs/`.
 
 ## morphir-avro 0.3.0 and morphir-openapi 0.3.0 - 2026-10-31
 

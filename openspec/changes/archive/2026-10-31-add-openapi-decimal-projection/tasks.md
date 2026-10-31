@@ -44,16 +44,20 @@ Bead `morphir-ltut` (label `repo:morphir-extensions`): group 1 is
 
 ## 5. Release preparation
 
-- [ ] 5.1 Qualify the PR CI `bundles-dry-run` bundle of `openapi` on the MoonBit
+- [x] 5.1 Qualify the PR CI `bundles-dry-run` bundle of `openapi` on the MoonBit
   worker host, native and npm entry, with `mise run qualify:moonbit`; verify that the
-  record passes and put it in the pull request.
-- [ ] 5.2 After the merge, run `extension-release.yml` as a dry run for
+  record passes and put it in the pull request. Passed, 14 of 14 commands, CLI
+  finos/morphir-moonbit `405f990`
+  (finos/morphir-extensions#22, comment 6545265403).
+- [x] 5.2 After the merge, run `extension-release.yml` as a dry run for
   `extension/openapi/v0.4.0`, qualify that bundle the same way, and record the
-  evidence; verify that the record passes.
+  evidence; verify that the record passes. Dry run 41214127298 built `166ffce`;
+  qualification passed, 14 of 14 commands, with module bytes equal to the PR bundle
+  (finos/morphir-extensions#22, comment 6545365065).
 
 ## Workflow follow-up
 
 - Push the tag `extension/openapi/v0.4.0` under Damian's approval and record the
-  release in `CHANGELOG.md`.
+  release in `CHANGELOG.md`. Done: tag pushed 2026-10-31, release run 41214792996.
 - Archive the change after the release, and close bead `morphir-ltut` and
   finos/morphir-extensions#20.
