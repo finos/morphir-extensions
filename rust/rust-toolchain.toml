@@ -1,5 +1,5 @@
 # The same channel as .config/mise/config.rust.toml.
 [toolchain]
-channel = "1.98.1"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown"]
