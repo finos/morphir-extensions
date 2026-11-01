@@ -7,6 +7,7 @@
 mod avro;
 mod diagnostic;
 mod internal;
+pub mod model;
 mod naming;
 mod options;
 mod render;
@@ -59,6 +60,7 @@ impl Extension for AvroExtension {
                 ir_versions: vec!["3".into(), "4".into()],
                 generate: true,
             }),
+            model_transport: Some(model::support()),
             ..ExtensionCapabilities::default()
         }
     }
@@ -67,6 +69,13 @@ impl Extension for AvroExtension {
 impl Backend for AvroExtension {
     fn generate(&self, request: GenerateRequest) -> morphir_extension_sdk::Result<GenerateResult> {
         backend_generate_with(request, generate_request)
+    }
+
+    fn generate_model(
+        &self,
+        request: morphir_extension_sdk::model::GenerateModelRequest,
+    ) -> morphir_extension_sdk::Result<GenerateResult> {
+        model::generate_model(request, |request| self.generate(request))
     }
 
     fn target_languages() -> Vec<String> {

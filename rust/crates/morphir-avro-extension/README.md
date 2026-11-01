@@ -33,7 +33,12 @@ cargo build --release -p morphir-avro-extension --target wasm32-unknown-unknown
 ## Backend contract
 
 The extension advertises target `avro`, Morphir IR versions `3` and `4`, and the
-MEP backend `generate` capability. Generation supports three projections:
+MEP backend `generate` capability. It speaks MEP `0.2.0-draft.1` and `0.1`. On
+`0.2.0-draft.1` it also answers `morphir.backend.generateModel` for the model
+transport tuple `morphir-ir` / `morphir-json` / envelope `0.1.0-draft.1` / IR
+`4.0.0`, with the same artifacts as `generate` for the envelope's IR. It offers
+no Ion tuple, because the SDK has no Ion reader for a WASM guest. Generation
+supports three projections:
 
 - `schemas` emits public types without messages.
 - `protocol-entry-points` emits declared v4 Application entry points.

@@ -46,7 +46,9 @@ morphir-extensions/
 
 The crates and their history come from finos/morphir-rust (OpenSpec change
 `move-avro-and-openapi-extensions`). Each builds to an Extism guest
-(`wasm32-unknown-unknown`) that speaks MEP 0.1. Rust tools are in
+(`wasm32-unknown-unknown`) that speaks MEP `0.2.0-draft.1` (with
+`morphir.backend.generateModel` for the JSON model tuple of IR `4.0.0`) and MEP
+`0.1` (OpenSpec change `add-mep-model-generation`). Rust tools are in
 `.config/mise/config.rust.toml`; select them with `MISE_ENV=rust`, so jobs that do
 not build Rust do not install it.
 
@@ -68,10 +70,12 @@ A guest may import only `extism:host/env`. `rust:wasm` fails on any other import
 - Each crate has `claims/expected.json`: the claims that the module must
   describe. Update it with any change to the identity or capabilities.
 - `crates/extension-guest-check` (not published) loads a built module with the
-  Extism runtime, runs an MEP 0.1 session and compares every fixture with the
-  native crate. Its binary prints the claims for `release.json`.
+  Extism runtime, runs an MEP 0.1 session and an MEP `0.2.0-draft.1` session and
+  compares every fixture with the native crate. Its binary prints the claims for
+  `release.json`.
 - `mise run qualify:moonbit` runs a bundle on the MoonBit worker host (native and
-  Node CLI). Run it before each release tag and put its record in the pull
+  Node CLI), with plain IR and, when the claims hold the JSON model tuple, with a
+  model envelope. Run it before each release tag and put its record in the pull
   request or issue that prepares the tag.
 
 ## Development

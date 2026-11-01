@@ -12,6 +12,24 @@
     },
     "cancellation": false,
     "incremental": false,
+    "modelTransport": {
+      "guarantees": [],
+      "limits": {
+        "maxDecodedBytes": 50331648,
+        "maxDepth": 1024,
+        "maxEncodedBytes": 67108864,
+        "maxNodes": 16777216
+      },
+      "tuples": [
+        {
+          "codec": "morphir-json",
+          "envelopeVersion": "0.1.0-draft.1",
+          "irVersion": "4.0.0",
+          "operation": "morphir.backend.generateModel",
+          "profile": "morphir-ir"
+        }
+      ]
+    },
     "progress": false,
     "streaming": false
   },
@@ -27,9 +45,10 @@
     "types": [
       "backend"
     ],
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "protocolVersions": [
+    "0.2.0-draft.1",
     "0.1"
   ]
 }

@@ -7,6 +7,22 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 ## [Unreleased]
 
+### Added
+
+- MEP `0.2.0-draft.1` for both extensions (finos/morphir-extensions#18, OpenSpec
+  change `add-mep-model-generation`). The guests claim `0.2.0-draft.1` and `0.1`
+  and answer `morphir.backend.generateModel` for the one model transport tuple
+  `morphir-ir` / `morphir-json` / envelope `0.1.0-draft.1` / IR `4.0.0`, with the
+  artifacts and diagnostics of `morphir.backend.generate` for the envelope's IR.
+  They offer no Ion tuple: the SDK has no Ion reader for a WASM guest. An
+  unagreed tuple, an envelope that does not match its tuple or digest, and a
+  required guarantee are refused with a JSON-RPC error. A host that offers only
+  `0.1` gets the `0.1` session, unchanged. The Extism ABI, the projections and
+  their options do not change. To be released as morphir-avro 0.4.0 and
+  morphir-openapi 0.5.0.
+- The guest check runs an MEP `0.2.0-draft.1` session on the built modules, and
+  `qualify:moonbit` also generates from a model envelope of each IR v4 fixture.
+
 ### Changed
 
 - Archive the OpenSpec change `add-openapi-decimal-projection`; its `Decimal`

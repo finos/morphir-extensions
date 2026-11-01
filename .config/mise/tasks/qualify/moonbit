@@ -4,8 +4,11 @@
 // OpenSpec change move-avro-and-openapi-extensions, design.html QUA-1. Runs
 // `morphir extension describe` and `morphir extension generate` (plain IR JSON,
 // MEP 0.1) for every claimed target and each IR fixture in `models`, with a contract 0.2.0
-// pin that names the module and its release.json. Writes a JSON record and exits
-// non-zero when any command fails.
+// pin that names the module and its release.json. When the claims hold the JSON
+// model tuple, it also runs generate with a model envelope of each IR v4 fixture
+// (MEP 0.2.0-draft.1, change add-mep-model-generation, QUA-2): the run must
+// negotiate that line and tuple and write the same files as the plain-IR run.
+// Writes a JSON record and exits non-zero when any command fails.
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -72,9 +75,15 @@ const models = [
   { name: "typed-pricing-v4", path: join(fixtures, "typed-pricing-v4.json") },
 ];
 
+interface OutputFile {
+  path: string;
+  sha256: string;
+}
+
 interface Run {
   host: string;
   command: string;
+  input?: "ir" | "envelope";
   target?: string;
   model?: string;
   exitCode: number;
@@ -82,8 +91,12 @@ interface Run {
   error?: unknown;
   extension?: unknown;
   protocolVersion?: unknown;
+  tuple?: unknown;
   worker?: unknown;
+  stop?: unknown;
   files?: number;
+  outputs?: OutputFile[];
+  sameAsIr?: boolean;
 }
 
 // The CLI's own deadline is COMMAND_MS. A host that does not exit within
@@ -121,26 +134,96 @@ function run(host: (typeof hosts)[number], args: string[], extra: Partial<Run>):
     error: report.error,
     extension: report.result?.extension,
     protocolVersion: report.result?.protocolVersion,
+    tuple: report.result?.negotiated?.tuple,
     worker: report.result?.worker ? { kind: report.result.worker.kind, runtime: report.result.worker.runtime } : undefined,
+    stop: report.result?.lifecycle
+      ? { workerStopped: report.result.lifecycle.workerStopped, worker: report.result.lifecycle.worker }
+      : undefined,
     files: report.result?.output?.files?.length,
+    outputs: report.result?.output?.files?.map((f: { path: string; sha256: string }) => ({ path: f.path, sha256: f.sha256 })),
   };
+}
+
+// The model line: the JSON tuple that the extensions of this repository claim
+// for morphir.backend.generateModel.
+const MODEL_PROTOCOL = "0.2.0-draft.1";
+const JSON_TUPLE = {
+  operation: "morphir.backend.generateModel",
+  profile: "morphir-ir",
+  codec: "morphir-json",
+  envelopeVersion: "0.1.0-draft.1",
+  irVersion: "4.0.0",
+};
+const claimedTuples: Record<string, unknown>[] = claims.capabilities.modelTransport?.tuples ?? [];
+const modelLine =
+  (claims.protocolVersions ?? []).includes(MODEL_PROTOCOL) &&
+  claimedTuples.some((t) => Object.entries(JSON_TUPLE).every(([k, v]) => t[k] === v));
+
+/** Write a JSON model envelope of an IR v4 file, as an IR v4 frontend returns it. */
+function writeEnvelope(model: { name: string; path: string }): string {
+  const bytes = readFileSync(model.path);
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  const envelope = {
+    envelopeVersion: JSON_TUPLE.envelopeVersion,
+    modelId: model.name,
+    revision: `sha256:${digest}`,
+    irVersion: JSON_TUPLE.irVersion,
+    profile: JSON_TUPLE.profile,
+    payload: {
+      codec: JSON_TUPLE.codec,
+      layout: "single-document",
+      decodedByteLength: bytes.length,
+      sha256: digest,
+      content: bytes.toString("base64"),
+    },
+  };
+  const path = join(work, `${model.name}.model-envelope.json`);
+  writeFileSync(path, `${JSON.stringify(envelope, null, 2)}\n`);
+  return path;
+}
+
+function sameFiles(a: OutputFile[] | undefined, b: OutputFile[] | undefined): boolean {
+  const key = (files: OutputFile[]) =>
+    files
+      .map((f) => `${f.path} ${f.sha256}`)
+      .sort()
+      .join("\n");
+  return a !== undefined && b !== undefined && a.length > 0 && key(a) === key(b);
 }
 
 // --describe-only checks only the host and the describe answer, for a control
 // bundle whose backend need not accept these fixtures.
 const describeOnly = process.argv.includes("--describe-only");
 const runs: Run[] = [];
+const envelopes = new Map<string, string>();
+if (modelLine && !describeOnly) {
+  for (const model of models) {
+    if (JSON.parse(readFileSync(model.path, "utf8")).formatVersion === 4) {
+      envelopes.set(model.name, writeEnvelope(model));
+    }
+  }
+}
 for (const host of hosts) {
   runs.push(run(host, ["extension", "describe"], {}));
   for (const target of describeOnly ? [] : targets) {
     for (const model of models) {
       const output = join(work, `${host.kind}-${target}-${model.name}`);
-      runs.push(
-        run(host, ["extension", "generate", model.path, "--output", output, "--target", target], {
-          target,
-          model: model.name,
-        }),
-      );
+      const plain = run(host, ["extension", "generate", model.path, "--output", output, "--target", target], {
+        input: "ir",
+        target,
+        model: model.name,
+      });
+      runs.push(plain);
+      const envelope = envelopes.get(model.name);
+      if (envelope) {
+        const modelRun = run(
+          host,
+          ["extension", "generate", envelope, "--output", `${output}-envelope`, "--target", target],
+          { input: "envelope", target, model: model.name },
+        );
+        modelRun.sameAsIr = sameFiles(modelRun.outputs, plain.outputs);
+        runs.push(modelRun);
+      }
     }
   }
 }
@@ -149,7 +232,11 @@ const passed = runs.every(
   (r) =>
     r.exitCode === 0 &&
     r.state === "succeeded" &&
-    (r.command !== "extension generate" || (r.files ?? 0) > 0),
+    (r.command !== "extension generate" || (r.files ?? 0) > 0) &&
+    (r.input !== "envelope" ||
+      (r.protocolVersion === MODEL_PROTOCOL &&
+        JSON.stringify(r.tuple) === JSON.stringify(JSON_TUPLE) &&
+        r.sameAsIr === true)),
 );
 const record = {
   qualification: "moonbit-worker-host",
@@ -162,6 +249,7 @@ const record = {
     wasm: { file: wasmName, sha256: sha256(wasm) },
     descriptor: { file: descriptorName, sha256: sha256(descriptorPath) },
   },
+  modelLine,
   cli: {
     repository: "finos/morphir-moonbit",
     commit: required("cli-commit"),
@@ -173,7 +261,7 @@ const out = resolve(flag("out") ?? join(work, "record.json"));
 writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
 for (const r of runs) {
   console.log(
-    `${r.exitCode === 0 && r.state === "succeeded" ? "ok  " : "FAIL"} ${r.host} ${r.command}${r.target ? ` --target ${r.target}` : ""}${r.model ? ` ${r.model}` : ""}: exit ${r.exitCode}${r.files !== undefined ? `, ${r.files} files` : ""}${r.error ? ` ${JSON.stringify(r.error)}` : ""}`,
+    `${r.exitCode === 0 && r.state === "succeeded" ? "ok  " : "FAIL"} ${r.host} ${r.command}${r.target ? ` --target ${r.target}` : ""}${r.model ? ` ${r.model}${r.input === "envelope" ? " (envelope)" : ""}` : ""}: exit ${r.exitCode}${r.protocolVersion ? `, MEP ${r.protocolVersion}` : ""}${r.files !== undefined ? `, ${r.files} files` : ""}${r.sameAsIr !== undefined ? `, same files as IR: ${r.sameAsIr}` : ""}${r.error ? ` ${JSON.stringify(r.error)}` : ""}`,
   );
 }
 console.log(`${passed ? "passed" : "FAILED"}; record in ${out}`);
