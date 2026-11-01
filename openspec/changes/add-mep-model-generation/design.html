@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-mep-model-generation: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+.agents { border-left: 4px solid var(--link); padding-left: .8rem; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-mep-model-generation: design</h1>
+<p class="meta">OpenSpec change | 2026-11-01 | in progress | bead <code>morphir-up3q</code> | finos/morphir-extensions#18</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#flow">Session flow</a></li>
+<li><a href="#decisions">Decisions</a>
+<ul>
+<li><a href="#mep-1">MEP-1. Both protocol lines through the SDK opt-in</a></li>
+<li><a href="#mep-2">MEP-2. One JSON tuple for IR 4.0.0, no Ion</a></li>
+<li><a href="#mep-3">MEP-3. generateModel reuses generate</a></li>
+<li><a href="#mep-4">MEP-4. Refusals are JSON-RPC errors</a></li>
+<li><a href="#mep-5">MEP-5. One small module per crate</a></li>
+<li><a href="#qua-2">QUA-2. Both lines in the guest check and in qualify:moonbit</a></li>
+<li><a href="#rel-1">REL-1. Release avro 0.4.0 and openapi 0.5.0</a></li>
+</ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the reason. Both crates implement
+<code>Extension</code> and <code>Backend</code> of <code>morphir-extension-sdk</code>
+0.4.0 and export an Extism guest with <code>export_extension!</code>. The SDK's guest
+session (<code>ProtocolSession</code>) enforces the lifecycle. For the model draft it
+also:</p>
+<ul>
+<li>claims <code>0.2.0-draft.1</code> before <code>0.1</code> only when
+<code>ExtensionCapabilities::model_transport</code> holds a tuple that its compiled
+readers support (<code>model/guest.rs</code>);</li>
+<li>selects <code>0.2.0-draft.1</code> only when the host offers it and sends a model
+transport offer, intersects complete tuples in the host's order, and takes the lower
+of each limit;</li>
+<li>refuses a model method that was not negotiated with
+<code>CAPABILITY_UNAVAILABLE</code>, and admits every <code>generateModel</code> request
+before dispatch (<code>validate_model_invocation</code>): agreed tuple, context digest,
+claimed target and IR version, the envelope's tuple, base64, length, SHA-256, budget
+and <code>formatVersion</code>, and required guarantees.</li>
+</ul>
+<p>The trait default of <code>Backend::generate_model</code> refuses the call, so an
+extension that advertises a tuple must implement it. The reference is
+finos/morphir-gleam <code>rust/crates/morphir-gleam-binding/src/model_transport.rs</code>
+(release <code>extension/gleam/v0.4.0</code>).</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> both guests on MEP <code>0.2.0-draft.1</code> with
+<code>generateModel</code>; no change for a host that offers only <code>0.1</code>; the
+same artifacts on both lines for the same IR; evidence on the MoonBit worker host.</p>
+<p><strong>Non-goals:</strong> a change of the Extism ABI (RUN-1 stays); a core-Wasm
+artifact; an Ion tuple; a model tuple for IR 3; any change of the projections or their
+options; the finos/morphir bundle pins (a separate pull request).</p>
+
+<h2 id="flow">Session flow</h2>
+<svg viewBox="0 0 760 300" role="img" aria-labelledby="flow-title" xmlns="http://www.w3.org/2000/svg">
+<title id="flow-title">The host probes with describe, then initializes on 0.2.0-draft.1 with an Ion and a JSON tuple; the guest agrees on the JSON tuple; generateModel is admitted by the SDK session and dispatched to the backend</title>
+<style>
+text { font: 13px system-ui, sans-serif; fill: currentColor; }
+.box { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.arrow { stroke: currentColor; stroke-width: 1.5; marker-end: url(#head); }
+</style>
+<defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect class="box" x="10" y="10" width="150" height="40" rx="6"/><text x="85" y="35" text-anchor="middle">Host (MoonBit CLI)</text>
+<rect class="box" x="300" y="10" width="170" height="40" rx="6"/><text x="385" y="35" text-anchor="middle">SDK guest session</text>
+<rect class="box" x="590" y="10" width="160" height="40" rx="6"/><text x="670" y="35" text-anchor="middle">Backend (crate)</text>
+<line class="arrow" x1="85" y1="75" x2="380" y2="75"/><text x="95" y="68">describe [0.2.0-draft.1, 0.1]</text>
+<line class="arrow" x1="380" y1="100" x2="90" y2="100"/><text x="150" y="94">claims: both lines, JSON tuple</text>
+<line class="arrow" x1="85" y1="135" x2="380" y2="135"/><text x="95" y="128">initialize: Ion tuple, JSON tuple</text>
+<line class="arrow" x1="380" y1="160" x2="90" y2="160"/><text x="150" y="154">agreed: JSON tuple, lower limits</text>
+<line class="arrow" x1="85" y1="195" x2="380" y2="195"/><text x="95" y="188">generateModel (envelope)</text>
+<line class="arrow" x1="390" y1="215" x2="665" y2="215"/><text x="400" y="208">admitted request</text>
+<line class="arrow" x1="665" y1="245" x2="395" y2="245"/><text x="420" y="240">GenerateResult</text>
+<line class="arrow" x1="380" y1="275" x2="90" y2="275"/><text x="150" y="269">result (or JSON-RPC error)</text>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+<p class="agents"><strong>Decided by agents, pending Damian review</strong>: MEP-1 to
+MEP-5, QUA-2 and REL-1. The work order (finos/morphir-extensions#18 and the
+maintainer's instructions of 2026-11-01) fixes the protocol line, the JSON tuple and
+the minor releases; the rest follows the Gleam reference.</p>
+
+<h3 id="mep-1">MEP-1. Both protocol lines through the SDK opt-in</h3>
+<p>Set <code>model_transport</code> in <code>capabilities()</code> and implement
+<code>Backend::generate_model</code>. The SDK then claims
+<code>["0.2.0-draft.1", "0.1"]</code>. A host that offers only <code>0.1</code>, or
+that sends no model transport offer, gets <code>0.1</code> and an initialize result
+without <code>modelTransport</code>, so the Rust host compatibility pins in
+finos/morphir and older MoonBit CLIs keep working.
+<em>Alternative:</em> a hand-written dispatcher; rejected, because the SDK session
+already enforces the draft's negotiation and admission rules.</p>
+
+<h3 id="mep-2">MEP-2. One JSON tuple for IR 4.0.0, no Ion</h3>
+<table>
+<thead><tr><th>operation</th><th>profile</th><th>codec</th><th>envelopeVersion</th><th>irVersion</th></tr></thead>
+<tbody><tr><td><code>morphir.backend.generateModel</code></td><td><code>morphir-ir</code></td><td><code>morphir-json</code></td><td><code>0.1.0-draft.1</code></td><td><code>4.0.0</code></td></tr></tbody>
+</table>
+<p>The SDK has no Ion reader on <code>wasm32</code> and refuses an Ion tuple from a
+WASM guest, so the guests cannot offer Ion. The MoonBit CLI offers Ion first and JSON
+second, and uses the first tuple that the guest agrees on, so it generates with JSON
+without an error. IR 3 stays on the <code>0.1</code> line: model envelopes come from
+IR v4 frontends, and the Gleam reference offers <code>4.0.0</code> only. The limits
+are those of the Gleam guest (64 MiB encoded, 48 MiB decoded, depth 1024, 16 Mi
+nodes); the host's lower limits apply.</p>
+
+<h3 id="mep-3">MEP-3. generateModel reuses generate</h3>
+<p><code>generate_model</code> admits the envelope with the SDK's
+<code>retain_model</code> for the JSON tuple, parses the exact payload bytes as JSON
+and calls the crate's existing <code>generate_request</code> with that IR, the
+request's target and its options. The output on the model line is therefore the
+output of <code>morphir.backend.generate</code> for the same IR, and the existing
+goldens pin it. Backend-domain failures (an unknown target in OpenAPI, invalid
+options, IR that does not normalize) stay results with <code>success: false</code>.</p>
+
+<h3 id="mep-4">MEP-4. Refusals are JSON-RPC errors</h3>
+<p>An unagreed tuple, an envelope that does not match its tuple, a payload with a wrong
+length or digest, and a required guarantee are protocol failures. In a session the
+SDK refuses them before dispatch with <code>INVALID_PARAMS</code>. A direct call of
+<code>generate_model</code> (no session) refuses them with
+<code>ExtensionError::InvalidParams</code>. The guests check no guarantee, so they
+refuse every required one; the Gleam guest answers a failed result in that case, but
+its session never dispatches such a request either.</p>
+
+<h3 id="mep-5">MEP-5. One small module per crate</h3>
+<p>Each crate gets <code>src/model.rs</code> (tuple, support, generate_model, about 60
+lines). The two copies differ only in the generate function they call. A shared crate
+would be a third published crate for one function, and each extension releases on its
+own.</p>
+
+<h3 id="qua-2">QUA-2. Both lines in the guest check and in qualify:moonbit</h3>
+<p>The guest check keeps its <code>0.1</code> session (the older-host path) and adds a
+<code>0.2.0-draft.1</code> session on the built module: negotiation with an Ion-first
+offer, <code>generateModel</code> parity with <code>generate</code> for every IR v4
+input, and the refusals. <code>qualify:moonbit</code> writes a JSON envelope for each
+IR v4 fixture and runs <code>extension generate</code> with it for every target. A run
+passes when it exits 0 by itself, reports protocol <code>0.2.0-draft.1</code> and the
+JSON tuple, and writes the same files (by SHA-256) as the plain-IR run.</p>
+
+<h3 id="rel-1">REL-1. Release avro 0.4.0 and openapi 0.5.0</h3>
+<p>A new protocol line and a new operation are additive: minor versions. The
+<code>0.1</code> output does not change.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>MEP <code>0.2.0-draft.1</code> is a draft; a later draft can change the wire.</td><td>The SDK refuses other drafts. A new draft means a new SDK and a new minor release; <code>0.1</code> stays.</td></tr>
+<tr><td>A host that sends only Ion gets an empty agreement (<code>extension.tuple_unavailable</code>).</td><td>Expected: the host required one format. The default MoonBit offer also lists JSON.</td></tr>
+<tr><td>The payload is parsed twice (SDK admission, then <code>serde_json</code>).</td><td>Bounded by the negotiated limits; the MoonBit host offers at most 2 MiB decoded.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>No migration: hosts on <code>0.1</code> see the same behavior. Hosts that offer
+<code>0.2.0-draft.1</code> can send a model envelope. Rollback is to pin the previous
+bundles; releases are never replaced.</p>
+
+</main>
+</body>
+</html>
