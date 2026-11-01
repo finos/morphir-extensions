@@ -29,17 +29,20 @@ Bead `morphir-up3q` (label `repo:morphir-extensions`): group 1 is
 - [x] 4.1 Add a `0.2.0-draft.1` session to `extension-guest-check`: negotiation,
   `generateModel` parity with `generate` on the module, refusals (QUA-2); keep the
   `0.1` session; verify with `MISE_ENV=rust mise run rust:guest-check`.
-- [ ] 4.2 Add the model line to `qualify:moonbit` (QUA-2); verify on a local bundle
-  with the native and npm CLI of finos/morphir-moonbit `main`.
+- [x] 4.2 Add the model line to `qualify:moonbit` (QUA-2); verify on a local bundle
+  with the native and npm CLI of finos/morphir-moonbit `main`. Passed for both local
+  bundles on CLI `40623b8` (avro 12 of 12, openapi 22 of 22 commands).
 - [x] 4.3 Update `CHANGELOG.md`, the crate READMEs and AGENTS.md; verify with
   `MISE_ENV=rust mise run rust:fmt`, `rust:lint`, `rust:test`, `rust:wasm`,
   `rust:guest-check` and `rust:avro-idl`.
 
 ## 5. Release preparation
 
-- [ ] 5.1 Qualify the PR CI `bundles-dry-run` bundles of `avro` and `openapi` on the
+- [x] 5.1 Qualify the PR CI `bundles-dry-run` bundles of `avro` and `openapi` on the
   MoonBit worker host, native and npm entry, with `mise run qualify:moonbit`; verify
-  that both records pass and put them in the pull request.
+  that both records pass and put them in the pull request. Passed on CI run
+  41267575321 bundles, CLI finos/morphir-moonbit `40623b8`: avro 12 of 12, openapi 22
+  of 22 commands (finos/morphir-extensions#25, comment 6552688313).
 - [ ] 5.2 After the merge (Damian's approval), run `extension-release.yml` as a dry
   run for `extension/avro/v0.4.0` and `extension/openapi/v0.5.0`, qualify those
   bundles the same way, and record the evidence.
