@@ -7,6 +7,29 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 ## [Unreleased]
 
+### Changed
+
+- Archive the OpenSpec change `add-mep-model-generation`; its requirements are now
+  in `openspec/specs/avro-extension` and `openspec/specs/openapi-extension`.
+- Archive the OpenSpec change `add-openapi-decimal-projection`; its `Decimal`
+  requirements are now in `openspec/specs/openapi-extension`.
+- Archive the OpenSpec change `move-avro-and-openapi-extensions`; its specs
+  `extension-bundle-release`, `avro-extension` and `openapi-extension` are now in
+  `openspec/specs/`.
+
+## morphir-avro 0.4.0 and morphir-openapi 0.5.0 - 2026-11-01
+
+Releases `extension/avro/v0.4.0` and `extension/openapi/v0.5.0`, attested bundles built
+from `a73cda0` (finos/morphir-extensions#25). Qualified on the MoonBit worker host,
+native and npm entry, before and after the tags.
+
+| File | SHA-256 |
+| --- | --- |
+| `morphir-avro-0.4.0.wasm` | `7f86a1983028d1e7d6b03de4d553417b05f8fc8eb47e20ab922830b0daecdd5f` |
+| `morphir-avro-0.4.0.release.json` | `926647e8ca0df3d76206fe8d1744c377cf9e1dbdea5c8494d5fadc2dcb991447` |
+| `morphir-openapi-0.5.0.wasm` | `691bb4892c1eaba11b5dbddb06a3217b7430e5c31c0239e8440ad4081c78da4d` |
+| `morphir-openapi-0.5.0.release.json` | `5385f37f1de928f3c48b19ee561a8ac39840cfcef1cf6fe6b49a7571ec3d4bff` |
+
 ### Added
 
 - MEP `0.2.0-draft.1` for both extensions (finos/morphir-extensions#18, OpenSpec
@@ -18,18 +41,9 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
   unagreed tuple, an envelope that does not match its tuple or digest, and a
   required guarantee are refused with a JSON-RPC error. A host that offers only
   `0.1` gets the `0.1` session, unchanged. The Extism ABI, the projections and
-  their options do not change. To be released as morphir-avro 0.4.0 and
-  morphir-openapi 0.5.0.
+  their options do not change.
 - The guest check runs an MEP `0.2.0-draft.1` session on the built modules, and
   `qualify:moonbit` also generates from a model envelope of each IR v4 fixture.
-
-### Changed
-
-- Archive the OpenSpec change `add-openapi-decimal-projection`; its `Decimal`
-  requirements are now in `openspec/specs/openapi-extension`.
-- Archive the OpenSpec change `move-avro-and-openapi-extensions`; its specs
-  `extension-bundle-release`, `avro-extension` and `openapi-extension` are now in
-  `openspec/specs/`.
 
 ## morphir-openapi 0.4.0 - 2026-10-31
 
