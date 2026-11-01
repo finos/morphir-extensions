@@ -6,7 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Loads a built Morphir extension guest with Extism, runs MEP 0.1 sessions and reads its claims"
+description = "Loads a built Morphir extension guest with Extism, runs MEP 0.1 and 0.2.0-draft.1 sessions and reads its claims"
 publish = false
 
 [dependencies]

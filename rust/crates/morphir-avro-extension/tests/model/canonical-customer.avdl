@@ -1,0 +1,9 @@
+@namespace("examples.customer.domain")
+protocol CustomerSchemas {
+  @namespace("examples.customer.domain")
+  @morphir.fqname("examples/customer:domain#customer")
+  record Customer {
+    long age;
+    string name;
+  }
+}

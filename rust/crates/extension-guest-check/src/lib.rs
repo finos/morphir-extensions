@@ -3,7 +3,8 @@
 //! [`Guest`] loads a built module with no WASI and no host functions beyond the
 //! Extism kernel, and sends MEP JSON-RPC requests to its `handle` export. The
 //! release workflow uses it to read the claims of the exact bytes it releases,
-//! and the tests use it to compare the module with the native crate.
+//! and the tests use it to compare the module with the native crate on both
+//! protocol lines: MEP `0.1` and the model line `0.2.0-draft.1`.
 
 use std::path::Path;
 
@@ -11,8 +12,11 @@ use extism::{Manifest, Plugin, Wasm};
 use morphir_extension_sdk::protocol::methods;
 use serde_json::{Value, json};
 
-/// The MEP version that the guests of this repository speak.
+/// The MEP version of an older host: plain IR JSON, no model transport.
 pub const PROTOCOL_VERSION: &str = "0.1";
+
+/// The MEP version of the model operations.
+pub const MODEL_PROTOCOL_VERSION: &str = "0.2.0-draft.1";
 
 /// An error from loading a guest or from one exchange with it.
 #[derive(Debug)]
@@ -45,8 +49,9 @@ impl Guest {
         Ok(Self { plugin, next_id: 1 })
     }
 
-    /// Send one request and return its `result`, or the JSON-RPC error as an error.
-    pub fn request(&mut self, method: &str, params: Value) -> Result<Value, GuestError> {
+    /// Send one request and return the whole JSON-RPC response, with its
+    /// `result` or its `error`.
+    pub fn exchange(&mut self, method: &str, params: Value) -> Result<Value, GuestError> {
         let id = self.next_id;
         self.next_id += 1;
         let request = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
@@ -62,6 +67,12 @@ impl Guest {
                 "{method}: the answer has another id: {response}"
             )));
         }
+        Ok(response)
+    }
+
+    /// Send one request and return its `result`, or the JSON-RPC error as an error.
+    pub fn request(&mut self, method: &str, params: Value) -> Result<Value, GuestError> {
+        let response = self.exchange(method, params)?;
         if let Some(rpc_error) = response.get("error").filter(|e| !e.is_null()) {
             return Err(error(format!("{method}: {rpc_error}")));
         }
@@ -85,19 +96,31 @@ impl Guest {
     /// guests answer only requests through `handle`, so Extism hosts drop
     /// notifications (as the Rust host does).
     pub fn initialize(&mut self) -> Result<Value, GuestError> {
-        let result = self.request(
-            methods::INITIALIZE,
-            json!({
-                "protocolVersions": [PROTOCOL_VERSION],
-                "host": {
-                    "kind": "cli",
-                    "name": "extension-guest-check",
-                    "version": env!("CARGO_PKG_VERSION"),
-                },
-            }),
-        )?;
+        self.initialize_with(&[PROTOCOL_VERSION], None, PROTOCOL_VERSION)
+    }
+
+    /// Start a session that offers `versions` and, when given, a model
+    /// transport offer; fail unless the guest selects `expected`.
+    pub fn initialize_with(
+        &mut self,
+        versions: &[&str],
+        model_transport: Option<Value>,
+        expected: &str,
+    ) -> Result<Value, GuestError> {
+        let mut params = json!({
+            "protocolVersions": versions,
+            "host": {
+                "kind": "cli",
+                "name": "extension-guest-check",
+                "version": env!("CARGO_PKG_VERSION"),
+            },
+        });
+        if let Some(offer) = model_transport {
+            params["modelTransport"] = offer;
+        }
+        let result = self.request(methods::INITIALIZE, params)?;
         let negotiated = result.get("protocolVersion").and_then(Value::as_str);
-        if negotiated != Some(PROTOCOL_VERSION) {
+        if negotiated != Some(expected) {
             return Err(error(format!(
                 "initialize negotiated {negotiated:?}: {result}"
             )));
@@ -116,6 +139,12 @@ impl Guest {
             methods::GENERATE,
             json!({ "ir": ir, "target": target, "options": options }),
         )
+    }
+
+    /// Send `morphir.backend.generateModel` in an open session and return the
+    /// whole response.
+    pub fn generate_model(&mut self, request: Value) -> Result<Value, GuestError> {
+        self.exchange(methods::GENERATE_MODEL, request)
     }
 
     /// End the session: `morphir.shutdown`, then `morphir.exit`.

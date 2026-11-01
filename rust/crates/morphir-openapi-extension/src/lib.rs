@@ -6,6 +6,7 @@
 //! same schema in either output.
 
 mod diagnostic;
+pub mod model;
 mod options;
 mod render;
 mod schema;
@@ -82,6 +83,7 @@ impl Extension for OpenApiExtension {
                 ir_versions: vec!["3".into(), "4".into()],
                 generate: true,
             }),
+            model_transport: Some(model::support()),
             ..ExtensionCapabilities::default()
         }
     }
@@ -91,6 +93,13 @@ impl Backend for OpenApiExtension {
     fn generate(&self, request: GenerateRequest) -> morphir_extension_sdk::Result<GenerateResult> {
         generate_request(request)
             .map_err(|error| ExtensionError::ExecutionFailed(error.to_string()))
+    }
+
+    fn generate_model(
+        &self,
+        request: morphir_extension_sdk::model::GenerateModelRequest,
+    ) -> morphir_extension_sdk::Result<GenerateResult> {
+        model::generate_model(request, |request| self.generate(request))
     }
 
     fn target_languages() -> Vec<String> {
