@@ -43,13 +43,21 @@ Bead `morphir-up3q` (label `repo:morphir-extensions`): group 1 is
   that both records pass and put them in the pull request. Passed on CI run
   41267575321 bundles, CLI finos/morphir-moonbit `40623b8`: avro 12 of 12, openapi 22
   of 22 commands (finos/morphir-extensions#25, comment 6552688313).
-- [ ] 5.2 After the merge (Damian's approval), run `extension-release.yml` as a dry
+- [x] 5.2 After the merge (Damian's approval), run `extension-release.yml` as a dry
   run for `extension/avro/v0.4.0` and `extension/openapi/v0.5.0`, qualify those
-  bundles the same way, and record the evidence.
+  bundles the same way, and record the evidence. Dry runs 41296107598 (avro) and
+  41296109671 (openapi) built `a73cda0`; qualification on CLI `fb6d5cb` passed, avro
+  12 of 12 and openapi 22 of 22 commands, with module bytes equal to the PR bundles.
+  The full guest check on those modules passed, and 16 tampered-envelope commands
+  were refused with no output (finos/morphir-extensions#25, comment 6556622348).
 
 ## Workflow follow-up
 
 - Push the tags `extension/avro/v0.4.0` and `extension/openapi/v0.5.0` under
-  Damian's approval and record the releases in `CHANGELOG.md`.
+  Damian's approval and record the releases in `CHANGELOG.md`. Done: tags pushed
+  2026-11-01 on `a73cda0`, release runs 41308453286 (avro) and 41308455129 (openapi).
+  Checksums and attestations of the published assets verify. The published bytes
+  passed qualification on CLI `fb6d5cb` and on CLI `612959b` (avro 12 of 12, openapi
+  22 of 22 commands each).
 - Archive the change after the releases, and close bead `morphir-up3q` and
-  finos/morphir-extensions#18.
+  finos/morphir-extensions#18. The bead and the issue close when this record merges.
