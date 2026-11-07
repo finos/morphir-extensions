@@ -64,21 +64,14 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@v5
         with:
-          install_args: node npm:@fission-ai/openspec http:moonbit
+          install_args: node npm:@fission-ai/openspec github:moonrockz/mission-control
           cache: true
 
-      - name: Complete the pinned MoonBit SDK for the shared checker
-        run: |
-          set -euo pipefail
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | \
-            MOON_HOME="$(mise where http:moonbit)" bash -s -- "$(mise current http:moonbit)"
-          mise exec -- moon update
+      - name: Check the OpenSpec snapshot and the pinned tools bundle
+        run: mise exec -- mission-control-tools openspec check --bundle
 
-      - name: Check OpenSpec snapshots, schema and changes
-        run: |
-          mise run openspec:check
-          mise run openspec:validate
-          mise run openspec:test
+      - name: Validate the OpenSpec schema and changes
+        run: mise run openspec:validate
 
   actionlint:
     name: Workflow lint

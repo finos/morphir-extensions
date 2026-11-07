@@ -26,7 +26,7 @@ released from here as an attested bundle that a Morphir CLI can verify and insta
 morphir-extensions/
 ├── openspec/            # OpenSpec changes and specs (shared html-design schema)
 ├── .config/mise/        # Tool pins and file-based tasks
-│   ├── config.toml      # Repository tools (OpenSpec, MoonBit checker, bun, actionlint)
+│   ├── config.toml      # Repository tools (OpenSpec, mission-control tools CLI, bun, actionlint)
 │   └── tasks/           # mise tasks
 ├── rust/                # Rust extensions (one Cargo workspace)
 ├── .github/             # Workflows, skills and agent profiles
@@ -84,7 +84,7 @@ A guest may import only `extism:host/env`. `rust:wasm` fails on any other import
 mise install                  # repository tools
 mise run openspec:check       # managed OpenSpec snapshot is unchanged
 mise run openspec:validate    # schema and every change, strict
-mise run openspec:test        # tests of the shared checker
+mise run openspec:verify      # check and validate together
 actionlint                    # GitHub Actions workflows
 ```
 
@@ -93,8 +93,10 @@ actionlint                    # GitHub Actions workflows
 - Use the published Morphir crates from crates.io. If an extension needs an
   unpublished change, have finos/morphir-rust publish it first. Do not add a git
   or path dependency on another repository.
-- Pin every tool in `.config/mise/`. The MoonBit toolchain is `0.10.18+6c83a7f62`;
-  do not add pins or workarounds for an older version.
+- Pin every tool in `.config/mise/`. This repository does not pin MoonBit:
+  nothing here runs it. The manual `qualify-moonbit.yml` workflow builds the
+  MoonBit CLI with the toolchain pin of finos/morphir-moonbit at its pinned
+  commit.
 
 ## OpenSpec workflow
 
@@ -109,12 +111,14 @@ generated `openspec-*` skills say `design.md`; in this repository that file is
 `design.html`. Keep Morphir context and FINOS contribution policy in
 `openspec/config.yaml` and this file.
 
-The schema, templates, checker and Gherkin feature are managed snapshots from
-`moonrockz/mission-control`'s `apps/openspec-ext`, locked by
-`openspec/extensions.lock.json`. Do not edit those files locally. Run
-`mise run openspec:check`, `mise run openspec:validate` and
-`mise run openspec:test` after OpenSpec changes. Run `mise run openspec:setup` to
-regenerate the six core skills without changing personal OpenSpec settings.
+The schema and templates are managed snapshots from the pinned
+`mission-control-tools` CLI (`moonrockz/mission-control`, `tools-v*` releases),
+locked by `openspec/extensions.lock.json`. Do not edit those files locally. Run
+`mise run openspec:verify` (check and validate) after OpenSpec changes. To move
+the CLI to a new version, change its version in `.config/mise/config.toml` and
+run `mise exec -- mission-control-tools openspec install`. Run
+`mise run openspec:setup` to regenerate the six core skills without changing
+personal OpenSpec settings.
 
 ## Issue tracking with beads
 

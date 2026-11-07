@@ -7,7 +7,8 @@ Read root `AGENTS.md`. This checkout carries the complete build-master skill, so
 - `.github/workflows/ci.yml` owns routine CI. Its `changes` job selects the path-scoped jobs from the changed files. Its `ci-ok` job always runs, needs every other job and is the one check to require; a skipped job must not block a merge.
 - `.github/workflows/extension-release.yml` (when present) owns the release of every extension. A tag `extension/<short-id>/v<version>` selects one extension from `rust/extensions.toml`. The check job refuses a wrong version, a tag that is not on `main` and an existing release before any build. The module is built once and every later job uses that artifact.
 - `.config/mise/config.toml` pins the repository tools. Language tools are in their own environment (`.config/mise/config.rust.toml`, `MISE_ENV=rust`), so the OpenSpec and lint jobs do not install Rust.
-- The OpenSpec checks (`mise run openspec:check`, `openspec:validate`, `openspec:test`) need the pinned MoonBit toolchain only for the shared snapshot checker.
+- The OpenSpec checks (`mise run openspec:check`, `openspec:validate`, `openspec:verify`) use the pinned `mission-control-tools` binary for the shared snapshot check. The CI OpenSpec job runs `mission-control-tools openspec check --bundle`.
+- This repository does not pin MoonBit. The manual `.github/workflows/qualify-moonbit.yml` builds the MoonBit CLI with the toolchain pin of finos/morphir-moonbit at its `moonbit-ref` commit.
 
 This is a navigation map, not an assertion that all existing placements are optimal. Use current files and run evidence to decide.
 
