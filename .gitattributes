@@ -8,3 +8,5 @@
 *.ico binary
 *.jpg binary
 *.svg text eol=lf
+# The managed OpenSpec files are compared byte for byte with their lock digests.
+openspec/schemas/html-design/** text eol=lf

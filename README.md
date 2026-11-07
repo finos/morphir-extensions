@@ -75,7 +75,7 @@ Install [mise](https://mise.jdx.dev), then:
 mise install                  # pinned repository tools
 mise run openspec:check       # managed OpenSpec snapshot is unchanged
 mise run openspec:validate    # schema and every change, strict
-mise run openspec:test        # tests of the shared checker
+mise run openspec:verify      # check and validate together
 ```
 
 The Rust extensions in `rust/` use their own mise environment:

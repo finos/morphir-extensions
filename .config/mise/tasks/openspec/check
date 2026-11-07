@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Check the shared OpenSpec ownership lock"
+#MISE description="Check the shared OpenSpec ownership lock and the pinned tools bundle"
 set -euo pipefail
 
-exec mise exec -- moon run -q --target wasm scripts/openspec-ext.mbtx -- check
+exec mise exec -- mission-control-tools openspec check --bundle

@@ -12,6 +12,22 @@ bun = "1.4.4"
 # GitHub Actions workflow lint.
 actionlint = "1.7.12"
 
+# The shared OpenSpec snapshot checker (openspec:check, openspec:setup and
+# openspec install). It is a released binary, so a MoonBit toolchain change
+# cannot break it. A version bump needs `mission-control-tools openspec install`.
+[tools."github:moonrockz/mission-control"]
+version = "0.1.0"
+version_prefix = "tools-v"
+
+[tools."github:moonrockz/mission-control".platforms]
+linux-x64 = { asset_pattern = "mission-control-tools-linux-x64.tar.gz" }
+linux-arm64 = { asset_pattern = "mission-control-tools-linux-arm64.tar.gz" }
+macos-arm64 = { asset_pattern = "mission-control-tools-darwin-arm64.tar.gz" }
+macos-x64 = { asset_pattern = "mission-control-tools-darwin-x64.tar.gz" }
+windows-x64 = { asset_pattern = "mission-control-tools-windows-x64.zip" }
+# No Windows arm64 build; Windows on Arm runs the x64 build under emulation.
+windows-arm64 = { asset_pattern = "mission-control-tools-windows-x64.zip" }
+
 # The shared OpenSpec snapshot checker is a standalone MoonBit development tool.
 # To move to a newer release, change the version here and in each URL (with "+"
 # written as "%2B"), taken from https://cli.moonbitlang.com/binaries/<version>/.

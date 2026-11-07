@@ -2,4 +2,4 @@
 #MISE description="Regenerate core OpenSpec skills with isolated preferences"
 set -euo pipefail
 
-exec mise exec -- moon run -q --target wasm scripts/openspec-ext.mbtx -- setup
+exec mise exec -- mission-control-tools openspec setup
