@@ -202,7 +202,7 @@ jobs:
           cache: true
 
       - name: Cache Apache Avro Tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .morphir/cache/avro
           key: avro-tools-1.12.2
