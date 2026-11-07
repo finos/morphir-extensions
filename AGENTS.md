@@ -93,8 +93,10 @@ actionlint                    # GitHub Actions workflows
 - Use the published Morphir crates from crates.io. If an extension needs an
   unpublished change, have finos/morphir-rust publish it first. Do not add a git
   or path dependency on another repository.
-- Pin every tool in `.config/mise/`. The MoonBit toolchain is `0.10.18+6c83a7f62`;
-  do not add pins or workarounds for an older version.
+- Pin every tool in `.config/mise/`. This repository does not pin MoonBit:
+  nothing here runs it. The manual `qualify-moonbit.yml` workflow builds the
+  MoonBit CLI with the toolchain pin of finos/morphir-moonbit at its pinned
+  commit.
 
 ## OpenSpec workflow
 
