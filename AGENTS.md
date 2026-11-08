@@ -96,7 +96,8 @@ actionlint                    # GitHub Actions workflows
 - Pin every tool in `.config/mise/`. This repository does not pin MoonBit:
   nothing here runs it. The manual `qualify-moonbit.yml` workflow builds the
   MoonBit CLI with the toolchain pin of finos/morphir-moonbit at its pinned
-  commit.
+  commit. The default `moonbit-ref` is
+  `0af43619fad3deb8240062ad3453eb8ea1703aeb` (MoonBit 0.10.20).
 
 ## OpenSpec workflow
 
