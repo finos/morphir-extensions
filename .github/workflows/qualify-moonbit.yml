@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install mise
         uses: jdx/mise-action@v5
@@ -69,7 +69,7 @@ jobs:
             --pattern '*.wasm' --pattern '*.release.json' --dir "$RUNNER_TEMP/bundles/python"
 
       - name: Checkout finos/morphir-moonbit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: finos/morphir-moonbit
           ref: ${{ inputs.moonbit-ref }}
