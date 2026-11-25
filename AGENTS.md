@@ -105,21 +105,30 @@ Use the shared `html-design` schema for new change proposals. Start with the
 `openspec-propose` skill, then use `openspec-apply-change`,
 `openspec-update-change`, `openspec-sync-specs` and `openspec-archive-change` as
 the change progresses. `openspec-explore` supports investigation before a
-proposal.
+proposal. The `openspec` skill answers questions about OpenSpec and sends a
+request to the skill that does the work.
 
 Design artifacts are standalone `design.html` files with inline CSS and SVG. The
 generated `openspec-*` skills say `design.md`; in this repository that file is
 `design.html`. Keep Morphir context and FINOS contribution policy in
 `openspec/config.yaml` and this file.
 
-The schema and templates are managed snapshots from the pinned
-`mission-control-tools` CLI (`moonrockz/mission-control`, `tools-v*` releases),
-locked by `openspec/extensions.lock.json`. Do not edit those files locally. Run
-`mise run openspec:verify` (check and validate) after OpenSpec changes. To move
-the CLI to a new version, change its version in `.config/mise/config.toml` and
-run `mise exec -- mission-control-tools openspec install`. Run
-`mise run openspec:setup` to regenerate the six core skills without changing
+OpenSpec is pinned to 2.2.0 and `mission-control-tools` to 0.1.3 in
+`.config/mise/config.toml`. The schema and templates are managed snapshots from
+the pinned `mission-control-tools` CLI (`moonrockz/mission-control`, `tools-v*`
+releases), locked by `openspec/extensions.lock.json`. Do not edit those files
+locally. Run `mise run openspec:verify` (check and validate) after OpenSpec
+changes. To move the CLI to a new version, change its version in
+`.config/mise/config.toml` and run
+`mise exec -- mission-control-tools openspec install`. Run
+`mise run openspec:setup` to regenerate the seven core skills without changing
 personal OpenSpec settings.
+
+The OpenSpec skills are checked in once, in `.agents/skills/`, which Codex,
+Copilot, Cursor, Gemini and OpenCode read. `.claude/skills/` and
+`.grok/skills/` hold links to them. On Windows, run
+`git config --global core.symlinks true` before you clone, or each link checks
+out as a small text file.
 
 ## Issue tracking with beads
 
