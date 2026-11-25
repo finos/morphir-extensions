@@ -9,6 +9,16 @@ Each extension has its own version and release tag `extension/<short-id>/v<versi
 
 ### Changed
 
+- OpenSpec moves from 1.14.3 to 2.2.0, and `mission-control-tools` from 0.1.0 to
+  0.1.3, which accepts OpenSpec 2.2 in `openspec:setup`. The managed `html-design`
+  bundle takes the narrative authoring guidance of `mission-control-tools` 0.1.2.
+  The agent skills now use the OpenSpec 2 layout: one copy in `.agents/skills/`,
+  links in `.claude/skills/` and `.grok/skills/`, and the new `openspec` skill,
+  which answers OpenSpec questions and routes requests. The copies in `.cursor/`,
+  `.gemini/`, `.github/skills/` and `.opencode/` are removed; those agents read
+  `.agents/skills/`. On Windows, clone with `core.symlinks` set to `true` to get
+  the links. mise resolves tool releases through the GitHub API
+  (`use_versions_host = false`).
 - Archive the OpenSpec change `add-mep-model-generation`; its requirements are now
   in `openspec/specs/avro-extension` and `openspec/specs/openapi-extension`.
 - Archive the OpenSpec change `add-openapi-decimal-projection`; its `Decimal`
